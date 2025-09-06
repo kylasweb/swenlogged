@@ -1,0 +1,20 @@
+project_id = "ocdyuzmfdrnijwlujain"
+
+[auth]
+enabled = true
+additional_redirect_urls = ["https://localhost:5173", "https://localhost:3000"]
+
+[auth.providers.email]
+enabled = true
+
+[auth.providers.github]
+enabled = false
+
+[auth.providers.google]
+enabled = false
+
+[edge_runtime]
+ip_version = "ipv4"
+
+[functions.get-mapbox-token]
+verify_jwt = false
