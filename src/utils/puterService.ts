@@ -119,92 +119,74 @@ class PuterService {
         const ready = await this.ensureReady(options?.timeoutMs);
         if (!ready) throw new Error('Puter.js AI service is not ready');
 
-        try {
-            // Attempt silent auth (best-effort) if auth API present
+        const apiOptions: Record<string, unknown> = {
+            model: options?.model || 'gpt-5-nano', // free-friendly default per prompt.md
+            stream: options?.stream ?? false,
+            temperature: options?.temperature ?? 0.7,
+        };
+        if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
+
+        // DEFAULT: testMode ON (no auth prompt). User can explicitly disable with options.testMode === false.
+        const effectiveTestMode = options?.testMode !== false;
+
+        // Only attempt auth probing if explicitly NOT in test mode.
+        if (!effectiveTestMode) {
             try {
                 const maybeAuth = (window as unknown as { puter?: { auth?: { getUser?: () => Promise<unknown> } } }).puter?.auth;
-                if (maybeAuth && typeof maybeAuth.getUser === 'function') {
-                    // do not await aggressively; race is fine
+                if (maybeAuth?.getUser) {
                     await Promise.race([
                         maybeAuth.getUser(),
-                        new Promise(res => setTimeout(res, 500))
+                        new Promise(res => setTimeout(res, 400))
                     ]);
                 }
-            } catch {/* silent */ }
-
-            const apiOptions: Record<string, unknown> = {
-                model: options?.model || 'gpt-5-nano', // per prompt.md docs default / free-friendly
-                stream: options?.stream ?? false,
-                temperature: options?.temperature ?? 0.7,
-            };
-            if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
-            const testModeRequested = !!options?.testMode;
-
-            // helper to invoke chat with optional testMode
-            const invokeChat = async (useTestMode: boolean) => {
-                // Overloads per docs: chat(prompt), chat(prompt, options), chat(prompt, testModeBool, options)
-                if (useTestMode) {
-                    return (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(prompt, true, apiOptions);
-                }
-                return window.puter.ai.chat(prompt as string, apiOptions as Record<string, unknown>);
-            };
-
-            let responseRaw: unknown;
-            let attemptedTestFallback = false;
-            try {
-                responseRaw = await invokeChat(testModeRequested);
-            } catch (primaryErr) {
-                const pErr = primaryErr as { message?: string; code?: string };
-                const authLike = (pErr.message || '').toLowerCase().includes('auth') || (pErr.message || '').includes('401') || pErr.code === 'auth_canceled';
-                if (!testModeRequested && authLike) {
-                    // retry silently with testMode true
-                    attemptedTestFallback = true;
-                    responseRaw = await invokeChat(true);
-                } else {
-                    throw primaryErr;
-                }
-            }
-
-            if (options?.rawResponse) return responseRaw;
-
-            let text: string;
-            try {
-                if (options?.stream && typeof responseRaw === 'object' && responseRaw && Symbol.asyncIterator in (responseRaw as Record<string, unknown>)) {
-                    // Aggregate streamed parts
-                    let aggregate = '';
-                    for await (const part of responseRaw as AsyncIterable<unknown>) {
-                        const fragment = (typeof part === 'object' && part && 'text' in (part as Record<string, unknown>)
-                            ? String((part as Record<string, unknown>).text || '')
-                            : typeof part === 'string' ? part : '');
-                        aggregate += fragment;
-                    }
-                    text = aggregate;
-                } else {
-                    text = String(extractTextFromPuterResponse(responseRaw as unknown));
-                }
-            } catch {
-                text = String(responseRaw);
-            }
-            const structured: AIParsedResponse = { text, raw: responseRaw, model: apiOptions.model as string };
-            return structured;
-        } catch (error) {
-            console.error('Puter.js AI request failed:', error);
-            const errObj = error as unknown as { message?: string; code?: string };
-            const message = (error instanceof Error ? error.message : '') || String(errObj?.message || '');
-            const code = errObj?.code || '';
-            if (
-                message.includes('401') ||
-                message.toLowerCase().includes('unauthorized') ||
-                message.toLowerCase().includes('authentication') ||
-                code === 'auth_canceled'
-            ) {
-                console.warn('Puter.js auth issue detected (', code || message, '). Returning fallback response.');
-                const fallback = this.getFallbackResponse(prompt);
-                return { text: fallback, raw: null, model: options?.model, cached: true } satisfies AIParsedResponse;
-            }
-            // Non-auth errors propagate
-            throw error;
+            } catch {/* ignore auth noise */ }
         }
+
+        // Always use explicit overload with testMode boolean for clarity.
+        let responseRaw: unknown;
+        try {
+            responseRaw = (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(
+                prompt,
+                effectiveTestMode,
+                apiOptions
+            );
+            responseRaw = await responseRaw; // ensure awaited
+        } catch (error) {
+            const errObj = error as { message?: string; code?: string };
+            const msg = (errObj.message || '').toLowerCase();
+            const authLike = msg.includes('auth') || msg.includes('401') || errObj.code === 'auth_canceled';
+            if (!effectiveTestMode && authLike) {
+                // Retry silently in test mode
+                responseRaw = await (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(prompt, true, apiOptions);
+            } else if (authLike) {
+                // Provide deterministic fallback (still counts as success path for UI)
+                const fallback = this.getFallbackResponse(prompt);
+                return { text: fallback, raw: null, model: apiOptions.model as string, cached: true } satisfies AIParsedResponse;
+            } else {
+                throw error;
+            }
+        }
+
+        if (options?.rawResponse) return responseRaw;
+
+        let text: string;
+        try {
+            if (options?.stream && typeof responseRaw === 'object' && responseRaw && Symbol.asyncIterator in (responseRaw as Record<string, unknown>)) {
+                let aggregate = '';
+                for await (const part of responseRaw as AsyncIterable<unknown>) {
+                    const fragment = (typeof part === 'object' && part && 'text' in (part as Record<string, unknown>)
+                        ? String((part as Record<string, unknown>).text || '')
+                        : typeof part === 'string' ? part : '');
+                    aggregate += fragment;
+                }
+                text = aggregate;
+            } else {
+                text = String(extractTextFromPuterResponse(responseRaw as unknown));
+            }
+        } catch {
+            text = String(responseRaw);
+        }
+        return { text, raw: responseRaw, model: apiOptions.model as string } satisfies AIParsedResponse;
     }
 
     private getFallbackResponse(prompt: string): string {
@@ -276,27 +258,25 @@ class PuterService {
         if (options?.maxTokens !== undefined) baseOptions['max_tokens'] = options.maxTokens;
 
         const invoke = async (useTest: boolean): Promise<unknown> => {
-            if (messages) {
-                if (useTest) return (window.puter.ai.chat as unknown as (m: unknown, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(messages, true, baseOptions);
-                return window.puter.ai.chat(messages as unknown as string, baseOptions); // SDK accepts array; cast keeps TS happy
-            }
-            if (prompt) {
-                if (useTest) return (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(prompt, true, baseOptions);
-                return window.puter.ai.chat(prompt, baseOptions);
-            }
+            const chatFnPrompt = window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>;
+            const chatFnMessages = window.puter.ai.chat as unknown as (m: unknown[], testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>;
+            if (messages) return chatFnMessages(messages, useTest, baseOptions);
+            if (prompt) return chatFnPrompt(prompt, useTest, baseOptions);
+            return '';
         };
 
+        // Default to test mode unless explicitly disabled.
+        const initialTestMode = options?.testMode !== false;
         let raw: unknown;
-        try {
-            raw = await invoke(!!options?.testMode);
-        } catch (err) {
+        try { raw = await invoke(initialTestMode); }
+        catch (err) {
             const e = err as { message?: string; code?: string };
-            const authLike = (e.message || '').toLowerCase().includes('auth') || e.code === 'auth_canceled';
-            if (!options?.testMode && authLike) {
+            const authLike = (e.message || '').toLowerCase().includes('auth') || (e.message || '').includes('401') || e.code === 'auth_canceled';
+            if (!initialTestMode && authLike) {
                 raw = await invoke(true);
-            } else {
-                throw err;
-            }
+            } else if (authLike) {
+                return { text: this.getFallbackResponse(prompt || ''), raw: null, model: baseOptions.model as string, cached: true };
+            } else { throw err; }
         }
 
         let text = '';
