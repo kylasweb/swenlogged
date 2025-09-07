@@ -5,7 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Ship, Anchor, Search, MapPin, Clock, Users } from "lucide-react";
+import { Ship, Anchor, Search, MapPin, Clock, Users, Brain } from "lucide-react";
+import { puterService } from '../../utils/puterService';
+import AIBadge from '../../components/ui/AIBadge';
+import { marineTrafficAnalysisPrompt } from '../../utils/toolPrompts';
+import { extractJson } from '../../utils/aiJson';
 
 const MarineTrafficPage = () => {
   const [vessels, setVessels] = useState([
@@ -56,7 +60,37 @@ const MarineTrafficPage = () => {
     }
   ]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedVessel, setSelectedVessel] = useState<any>(null);
+  interface Vessel { id: number; name: string; type: string; imo: string; flag: string; status: string; speed: string; course: string; destination: string; eta: string; lat: number; lng: number; cargo: string; }
+  const [selectedVessel, setSelectedVessel] = useState<Vessel | null>(null);
+  const [analysis, setAnalysis] = useState<{ summary?: string; etaRisks?: Array<{ name: string; risk: string }>; portCongestion?: string; recommendations?: string[]; error?: string } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  // Hydrate cached analysis
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('marine-traffic:analysis');
+      if (cached) setAnalysis(JSON.parse(cached));
+    } catch {/* ignore */}
+  }, []);
+  const runAnalysis = async () => {
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      await puterService.ensureReady(4000);
+      const prompt = marineTrafficAnalysisPrompt(vessels.map(v=>({ name: v.name, type: v.type, destination: v.destination, eta: v.eta, status: v.status })));
+      const aiResp = await puterService.makeAIRequest(prompt, { temperature: 0.25, maxTokens: 700 });
+      const text = typeof aiResp === 'string' ? aiResp : (aiResp as { text?: string }).text || '';
+      const json = extractJson<{ summary?: string; etaRisks?: Array<{ name: string; risk: string }>; portCongestion?: string; recommendations?: string[] }>(text);
+      if (json) {
+        setAnalysis(json);
+        try { localStorage.setItem('marine-traffic:analysis', JSON.stringify(json)); } catch {/* ignore */}
+      } else setAnalysis({ error: 'Failed to parse AI output' });
+    } catch (err) {
+      console.error('Marine analysis error', err);
+      setAnalysis({ error: 'AI analysis failed' });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const filteredVessels = vessels.filter(vessel =>
     vessel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -89,9 +123,12 @@ const MarineTrafficPage = () => {
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center mb-12">
               <Ship className="h-16 w-16 text-blue-600 mx-auto mb-6" />
-              <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">
-                Marine Traffic Tracker
-              </h1>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+                  Marine Traffic Tracker
+                </h1>
+                <AIBadge />
+              </div>
               <p className="text-lg leading-8 text-gray-600">
                 Real-time vessel tracking and port information
               </p>
@@ -282,6 +319,34 @@ const MarineTrafficPage = () => {
                         <span className="font-semibold">45</span>
                       </div>
                     </div>
+                    <div className="mt-6">
+                      <Button variant="outline" className="w-full flex items-center gap-2" disabled={analyzing} onClick={runAnalysis}>
+                        <Brain className="h-4 w-4" /> {analyzing ? 'Analyzing...' : 'AI Traffic Analysis'}
+                      </Button>
+                    </div>
+                    {analysis && (
+                      <div className="mt-6 space-y-4 text-sm">
+                        {analysis.summary && <p className="text-gray-700"><strong>Summary:</strong> {analysis.summary}</p>}
+                        {analysis.portCongestion && <p><strong>Port Congestion:</strong> {analysis.portCongestion}</p>}
+                        {analysis.etaRisks && analysis.etaRisks.length > 0 && (
+                          <div>
+                            <strong>ETA Risks:</strong>
+                            <ul className="list-disc ml-5">
+                              {analysis.etaRisks.map((r,i)=>(<li key={i}>{r.name}: {r.risk}</li>))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.recommendations && analysis.recommendations.length > 0 && (
+                          <div>
+                            <strong>Recommendations:</strong>
+                            <ul className="list-disc ml-5">
+                              {analysis.recommendations.map((r,i)=>(<li key={i}>{r}</li>))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.error && <p className="text-red-600">{analysis.error}</p>}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

@@ -1,5 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { puterService } from '../../utils/puterService';
+import { extractJson } from '../../utils/aiJson';
+import { freightQuotePrompt } from '../../utils/toolPrompts';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, Truck, Ship, Plane, Package } from "lucide-react";
 import BackButton from '@/components/ui/BackButton';
+import AIBadge from '../../components/ui/AIBadge';
 
 const FreightCalculatorPage = () => {
   const [formData, setFormData] = useState({
@@ -19,43 +23,88 @@ const FreightCalculatorPage = () => {
     shippingMode: '',
     packageType: ''
   });
-  const [result, setResult] = useState<{
+  interface FreightResult {
     cost: string;
     transitTime: string;
     distance: number;
-  } | null>(null);
+    surcharges?: Array<{ name: string; amount: string }>;
+    carbonEmissionsKg?: number;
+    modeRationale?: string;
+    recommendations?: string[];
+    error?: string;
+  }
+  const [result, setResult] = useState<FreightResult | null>(null);
   const [loading, setLoading] = useState(false);
+  // Hydrate from cache
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('freight-calculator:last');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.formData) setFormData(parsed.formData);
+        if (parsed?.result) setResult(parsed.result);
+      }
+    } catch {/* ignore */}
+  }, []);
 
   const handleCalculate = async () => {
     setLoading(true);
-    
-    // Simulate calculation
-    setTimeout(() => {
-      const baseRate = {
-        air: 8.5,
-        sea: 2.1,
-        ground: 1.5
-      }[formData.shippingMode as keyof typeof baseRate] || 3.0;
-      
-      const weight = parseFloat(formData.weight) || 0;
-      const volume = (parseFloat(formData.dimensions.length) || 0) * 
-                    (parseFloat(formData.dimensions.width) || 0) * 
-                    (parseFloat(formData.dimensions.height) || 0) / 1000000; // m³
-      
-      const estimatedCost = (weight * baseRate) + (volume * 150);
-      const transitTime = {
-        air: '1-3 days',
-        sea: '15-30 days', 
-        ground: '3-7 days'
-      }[formData.shippingMode as keyof typeof transitTime] || '5-10 days';
-      
-      setResult({
-        cost: estimatedCost.toFixed(2),
-        transitTime,
-        distance: Math.floor(Math.random() * 5000) + 500
+    setResult(null);
+    try {
+      await puterService.ensureReady(4000);
+      const weightKg = parseFloat(formData.weight) || 0;
+      const dims = {
+        length: parseFloat(formData.dimensions.length) || 0,
+        width: parseFloat(formData.dimensions.width) || 0,
+        height: parseFloat(formData.dimensions.height) || 0
+      };
+      const prompt = freightQuotePrompt({
+        origin: formData.origin,
+        destination: formData.destination,
+        weightKg,
+        dims,
+        mode: formData.shippingMode,
+        packageType: formData.packageType
       });
+      const aiResp = await puterService.makeAIRequest(prompt, { temperature: 0.15, maxTokens: 700 });
+      const text = typeof aiResp === 'string' ? aiResp : (aiResp as { text?: string }).text || '';
+      const json = extractJson<{
+        cost?: string|number;
+        transitTime?: string;
+        distance?: number|string;
+        surcharges?: Array<{ name: string; amount: string }>;
+        carbonEmissionsKg?: number;
+        modeRationale?: string;
+        recommendations?: string[];
+      }>(text);
+      if (json) {
+        setResult({
+          cost: (json.cost || '0').toString().replace(/[^0-9.]/g,'') ,
+          transitTime: json.transitTime || 'N/A',
+          distance: typeof json.distance === 'number' ? json.distance : parseInt(String(json.distance)) || 0,
+          surcharges: json.surcharges,
+          carbonEmissionsKg: json.carbonEmissionsKg,
+          modeRationale: json.modeRationale,
+          recommendations: json.recommendations
+        });
+        try { localStorage.setItem('freight-calculator:last', JSON.stringify({ formData, result: {
+          cost: (json.cost || '0').toString().replace(/[^0-9.]/g,''),
+          transitTime: json.transitTime || 'N/A',
+          distance: typeof json.distance === 'number' ? json.distance : parseInt(String(json.distance)) || 0,
+          surcharges: json.surcharges,
+          carbonEmissionsKg: json.carbonEmissionsKg,
+          modeRationale: json.modeRationale,
+          recommendations: json.recommendations
+        }})); } catch {/* ignore */}
+      } else {
+        setResult({ cost: '0', transitTime: 'N/A', distance: 0, error: 'Failed to parse AI response' });
+      }
+    } catch (err) {
+      console.error('Freight AI error', err);
+      setResult({ cost: '0', transitTime: 'N/A', distance: 0, error: 'AI calculation failed' });
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
 
@@ -70,9 +119,12 @@ const FreightCalculatorPage = () => {
             </div>
             <div className="mx-auto max-w-2xl text-center mb-12">
               <Calculator className="h-16 w-16 text-blue-600 mx-auto mb-6" />
-              <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">
-                Freight Calculator
-              </h1>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+                  Freight Calculator
+                </h1>
+                <AIBadge />
+              </div>
               <p className="text-lg leading-8 text-gray-600">
                 Calculate shipping costs and transit times for your cargo
               </p>
@@ -210,14 +262,34 @@ const FreightCalculatorPage = () => {
                         </div>
                       </div>
                       
-                      <div className="border-t pt-4">
-                        <h4 className="font-semibold mb-2">Included Services:</h4>
-                        <ul className="text-sm space-y-1 text-gray-600">
-                          <li>• Door-to-door pickup</li>
-                          <li>• Insurance coverage</li>
-                          <li>• Tracking service</li>
-                          <li>• Basic customs clearance</li>
-                        </ul>
+                      <div className="border-t pt-4 space-y-4">
+                        {result.surcharges && result.surcharges.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold mb-2">Surcharges:</h4>
+                            <ul className="text-sm space-y-1 text-gray-600">
+                              {result.surcharges.map((s, i) => (
+                                <li key={i}>• {s.name}: {s.amount}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {result.modeRationale && (
+                          <div>
+                            <h4 className="font-semibold mb-2">Mode Rationale</h4>
+                            <p className="text-sm text-gray-600">{result.modeRationale}</p>
+                          </div>
+                        )}
+                        {result.recommendations && result.recommendations.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold mb-2">Recommendations</h4>
+                            <ul className="text-sm space-y-1 text-gray-600">
+                              {result.recommendations.map((r,i)=>(<li key={i}>• {r}</li>))}
+                            </ul>
+                          </div>
+                        )}
+                        {result.error && (
+                          <p className="text-sm text-red-600">{result.error}</p>
+                        )}
                       </div>
                     </div>
                   ) : (

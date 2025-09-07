@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, FileText, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { Calculator, FileText, AlertTriangle, CheckCircle, Info, Brain } from "lucide-react";
 import { toast } from "sonner";
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { customsDutyPrompt } from '@/utils/toolPrompts';
+import AIBadge from '@/components/ui/AIBadge';
 
 interface DutyCalculation {
   country: string;
@@ -36,6 +39,50 @@ const CustomsDutyCalculator = () => {
 
   const [result, setResult] = useState<DutyCalculation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [useAI, setUseAI] = useState(true);
+
+  // AI hook
+  const { data: aiData, loading: aiLoading, error: aiError, run: runAIDuty } = useAICachedAction<{
+    hsCodeValidated: string;
+    baseDutyRatePercent: number;
+    estimatedDutyUSD: number;
+    vatOrGSTPercent: number;
+    estimatedVATUSD: number;
+    otherChargesUSD: number;
+    totalLandedCostUSD: number;
+    notes: string[];
+  }>({
+    cacheKey: 'customs-duty:last',
+    buildPrompt: () => customsDutyPrompt({
+      origin: formData.origin || 'Unknown',
+      destination: formData.country || 'Unknown',
+      hsCode: formData.hsCode || '0000',
+      valueUSD: parseFloat(formData.value || '0') || 0,
+      incoterm: 'DAP'
+    }),
+    parseShape: () => null
+  });
+
+  useEffect(() => {
+    if (aiData && useAI) {
+      const value = parseFloat(formData.value || '0') || 0;
+      const calculation: DutyCalculation = {
+        country: formData.country,
+        hsCode: aiData.hsCodeValidated || formData.hsCode,
+        value,
+        dutyRate: aiData.baseDutyRatePercent,
+        totalDuty: aiData.estimatedDutyUSD,
+        additionalFees: {
+          vat: aiData.estimatedVATUSD,
+          processing: aiData.otherChargesUSD * 0.4, // apportion for display
+          environmental: aiData.otherChargesUSD * 0.6,
+          total: aiData.estimatedVATUSD + aiData.otherChargesUSD
+        },
+        grandTotal: aiData.totalLandedCostUSD
+      };
+      setResult(calculation);
+    }
+  }, [aiData, useAI, formData]);
 
   // Mock duty rates by country and HS code category
   const dutyRates: Record<string, Record<string, number>> = {
@@ -112,6 +159,12 @@ const CustomsDutyCalculator = () => {
     const value = parseFloat(formData.value);
     if (isNaN(value) || value <= 0) {
       toast.error('Please enter a valid value');
+      return;
+    }
+
+    if (useAI) {
+      await runAIDuty();
+      if (!aiError) toast.success('AI duty estimation requested');
       return;
     }
 
@@ -192,15 +245,22 @@ const CustomsDutyCalculator = () => {
         {/* Input Form */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <FileText className="h-5 w-5" />
-              Shipment Details
+              Shipment Details {useAI && <AIBadge />}
             </CardTitle>
             <CardDescription>
               Enter your shipment information for duty calculation
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" className="h-4 w-4" checked={useAI} onChange={() => setUseAI(v => !v)} />
+                <span className="font-medium">AI Mode</span>
+              </label>
+              {aiError && <span className="text-red-600 text-xs">{aiError}</span>}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="country">Destination Country *</Label>
               <Select value={formData.country} onValueChange={(value) => setFormData(prev => ({ ...prev, country: value }))}>
@@ -303,20 +363,16 @@ const CustomsDutyCalculator = () => {
               </Select>
             </div>
 
-            <Button
-              onClick={calculateDuty}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
+            <Button onClick={calculateDuty} disabled={loading || aiLoading} className="w-full">
+              {(loading || aiLoading) ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Calculating...
+                  {useAI ? 'AI Estimating...' : 'Calculating...'}
                 </>
               ) : (
                 <>
-                  <Calculator className="h-4 w-4 mr-2" />
-                  Calculate Duties
+                  {useAI ? <Brain className="h-4 w-4 mr-2" /> : <Calculator className="h-4 w-4 mr-2" />}
+                  {useAI ? 'Generate AI Duty Estimate' : 'Calculate Duties'}
                 </>
               )}
             </Button>
@@ -326,7 +382,9 @@ const CustomsDutyCalculator = () => {
         {/* Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Duty Calculation Results</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Duty Calculation Results {aiData && useAI && <AIBadge />}
+            </CardTitle>
             <CardDescription>
               Breakdown of customs duties and additional fees
             </CardDescription>
@@ -342,6 +400,11 @@ const CustomsDutyCalculator = () => {
                   <div className="text-sm text-blue-700">
                     Total customs cost for {formatCurrency(result.value)} shipment
                   </div>
+                  {useAI && aiData?.notes && (
+                    <div className="mt-3 text-xs text-blue-600 space-y-1">
+                      {aiData.notes.slice(0,3).map((n,i)=>(<div key={i}>• {n}</div>))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Breakdown */}
@@ -352,7 +415,7 @@ const CustomsDutyCalculator = () => {
                   </div>
 
                   <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                    <span className="font-medium">VAT (18%)</span>
+                    <span className="font-medium">VAT ({useAI && aiData ? aiData.vatOrGSTPercent : 18}%)</span>
                     <span className="font-semibold">{formatCurrency(result.additionalFees.vat)}</span>
                   </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Package, Truck, Shield, Zap, CheckCircle, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { packagingAdvisorPrompt } from '@/utils/toolPrompts';
 
 interface PackagingRecommendation {
   primaryPackage: {
@@ -51,6 +55,28 @@ const PackagingAdvisor = () => {
 
   const [recommendation, setRecommendation] = useState<PackagingRecommendation | null>(null);
   const [loading, setLoading] = useState(false);
+  const [aiMode, setAiMode] = useState(true);
+
+  interface AIPackagingResp {
+    recommendedMaterials: string[];
+    packageType: string;
+    estimatedCostUSD: number;
+    sustainabilityScore: number;
+    riskMitigations: string[];
+    notes: string[];
+  }
+
+  const cacheKey = `packaging:${formData.productType}:${formData.fragility}:${formData.shippingMethod}:${formData.weight}`;
+  const { data: aiData, run: runAI, loading: aiLoading, error: aiError } = useAICachedAction<AIPackagingResp>({
+    cacheKey,
+    buildPrompt: () => packagingAdvisorPrompt({
+      product: formData.productType || 'unknown product',
+      weightKg: parseFloat(formData.weight) || 0,
+      fragile: ['high', 'extreme'].includes(formData.fragility),
+      hazardous: formData.specialRequirements.toLowerCase().includes('hazard')
+    }),
+    parseShape: () => null
+  });
 
   const productTypes = [
     { value: 'electronics', label: 'Electronics & Gadgets', icon: '📱' },
@@ -236,24 +262,56 @@ const PackagingAdvisor = () => {
       toast.error('Please fill in all required fields');
       return;
     }
-
+    if (aiMode) {
+      runAI();
+      toast.message('Requesting AI packaging recommendation...');
+      return;
+    }
     setLoading(true);
-
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
+      await new Promise(r=>setTimeout(r,800));
       const rec = getPackagingRecommendation(formData);
       setRecommendation(rec);
-      toast.success('Packaging recommendation generated!');
-
-    } catch (error) {
-      toast.error('Failed to generate recommendation. Please try again.');
-      console.error('Packaging recommendation error:', error);
+      toast.success('Local packaging recommendation generated');
+    } catch (e) {
+      toast.error('Failed to generate recommendation.');
     } finally {
       setLoading(false);
     }
   };
+
+  // Map AI data into existing structure
+  useEffect(() => {
+    if (aiMode && aiData) {
+      const base = getPackagingRecommendation(formData);
+      const rec: PackagingRecommendation = {
+        ...base,
+        primaryPackage: {
+          type: aiData.packageType || base.primaryPackage.type,
+          material: (aiData.recommendedMaterials && aiData.recommendedMaterials[0]) || base.primaryPackage.material,
+            dimensions: base.primaryPackage.dimensions,
+            weight: base.primaryPackage.weight,
+            cost: Math.round(aiData.estimatedCostUSD || base.primaryPackage.cost)
+        },
+        secondaryPackaging: {
+          ...base.secondaryPackaging,
+          protection: [...new Set([...(base.secondaryPackaging.protection || []), ...(aiData.riskMitigations || [])])]
+        },
+        estimatedCost: Math.round(aiData.estimatedCostUSD || base.estimatedCost),
+        environmental: {
+          ...base.environmental,
+          sustainable: (aiData.sustainabilityScore || 0) > 60,
+          recyclable: (aiData.sustainabilityScore || 0) > 50
+        },
+        specialRequirements: [
+          ...base.specialRequirements,
+          ...((aiData.notes || []).map(n => `Note: ${n}`))
+        ].filter(Boolean)
+      };
+      setRecommendation(rec);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiData, aiMode]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -291,6 +349,13 @@ const PackagingAdvisor = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="productType">Product Type *</Label>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2"><AIBadge /><span className="text-xs text-gray-500">Toggle AI for advanced advisory</span></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">AI Mode</span>
+                  <Switch checked={aiMode} onCheckedChange={(v)=>setAiMode(!!v)} />
+                </div>
+              </div>
               <Select value={formData.productType} onValueChange={(value) => setFormData(prev => ({ ...prev, productType: value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select product type" />
@@ -443,30 +508,39 @@ const PackagingAdvisor = () => {
               />
             </div>
 
-            <Button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Analyzing...
-                </>
+            <Button onClick={handleSubmit} disabled={loading || aiLoading} className="w-full">
+              {aiMode ? (
+                aiLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    AI Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Package className="h-4 w-4 mr-2" />Run AI Packaging Advisor
+                  </>
+                )
               ) : (
-                <>
-                  <Package className="h-4 w-4 mr-2" />
-                  Get Packaging Recommendation
-                </>
+                loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Calculating...
+                  </>
+                ) : (
+                  <>
+                    <Package className="h-4 w-4 mr-2" />Get Packaging Recommendation
+                  </>
+                )
               )}
             </Button>
+            {aiError && <div className="text-xs text-red-600 text-center mt-2">AI Error: {aiError}</div>}
           </CardContent>
         </Card>
 
         {/* Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Packaging Recommendation</CardTitle>
+            <CardTitle>Packaging Recommendation {aiMode && recommendation && <span className="ml-2"><AIBadge /></span>}</CardTitle>
             <CardDescription>
               Optimized packaging solution for your shipment
             </CardDescription>

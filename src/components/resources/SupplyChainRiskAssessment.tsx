@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Shield, TrendingUp, AlertCircle, CheckCircle, XCircle, BarChart3, FileText, Users, Globe } from "lucide-react";
+import { AlertTriangle, Shield, TrendingUp, AlertCircle, CheckCircle, XCircle, BarChart3, FileText, Users, Globe, Cpu } from "lucide-react";
 import { toast } from "sonner";
+import { supplierRiskAssessmentPrompt } from '@/utils/toolPrompts';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import AIBadge from '@/components/ui/AIBadge';
+import { Switch } from '@/components/ui/switch';
 
 interface RiskFactor {
   id: string;
@@ -32,6 +36,25 @@ interface RiskAssessment {
   lastUpdated: string;
 }
 
+interface AIRawFactor {
+  id?: string;
+  category?: string;
+  factor?: string;
+  name?: string;
+  description?: string;
+  impact?: string;
+  probability?: string;
+  mitigation?: string[];
+}
+
+interface AISupplierRiskResponse {
+  riskScore?: number;
+  riskLevel?: string;
+  factors?: AIRawFactor[];
+  recommendations?: string[];
+  summary?: string;
+}
+
 const SupplyChainRiskAssessment = () => {
   const [activeTab, setActiveTab] = useState('assessment');
   const [supplierName, setSupplierName] = useState('');
@@ -40,6 +63,22 @@ const SupplyChainRiskAssessment = () => {
   const [selectedRisks, setSelectedRisks] = useState<string[]>([]);
   const [customRisks, setCustomRisks] = useState('');
   const [assessment, setAssessment] = useState<RiskAssessment | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const runSupplierAI = useAICachedAction(async () => {
+    if (!supplierName || !location || !industry) return null;
+    const customList = customRisks.split('\n').map(r => r.trim()).filter(Boolean);
+    return supplierRiskAssessmentPrompt({
+      supplier: supplierName,
+      location,
+      industry,
+      selectedRisks,
+      customRisks: customList
+    });
+  }, [supplierName, location, industry, selectedRisks, customRisks], {
+    cacheKey: `supplier-risk:${supplierName}:${location}:${industry}:${selectedRisks.sort().join(',')}:${customRisks}`
+  });
 
   const riskCategories = [
     {
@@ -194,7 +233,7 @@ const SupplyChainRiskAssessment = () => {
     );
   };
 
-  const performAssessment = () => {
+  const performAssessment = async () => {
     if (!supplierName || !location || !industry) {
       toast.error('Please fill in all required fields');
       return;
@@ -205,51 +244,89 @@ const SupplyChainRiskAssessment = () => {
       return;
     }
 
-    const riskScore = calculateRiskScore(selectedRisks);
-    const riskLevel = getRiskLevel(riskScore);
+    let riskScore = calculateRiskScore(selectedRisks);
+    let riskLevel = getRiskLevel(riskScore);
+    let factors: RiskFactor[] = [];
+    let recommendations: string[] = [];
 
-    // Create risk factors array
-    const factors: RiskFactor[] = [];
-    selectedRisks.forEach(riskId => {
-      riskCategories.forEach(category => {
-        const factor = category.factors.find(f => f.id === riskId);
-        if (factor) {
-          factors.push({
-            ...factor,
-            category: category.category,
-            description: `${factor.factor} in ${location}`,
-            mitigation: generateRecommendations(riskLevel, [riskId])
-          });
+    // If AI enabled, attempt AI assessment first
+    if (aiEnabled) {
+      setAiLoading(true);
+      try {
+        const aiData = await runSupplierAI();
+        if (aiData && typeof aiData === 'object') {
+          // Validate minimal shape
+            const aiTyped = aiData as AISupplierRiskResponse;
+            if (typeof aiTyped.riskScore === 'number') riskScore = Math.max(0, Math.min(100, aiTyped.riskScore));
+            if (typeof aiTyped.riskLevel === 'string') {
+              const lvl = aiTyped.riskLevel.toLowerCase();
+              if (['low','medium','high','critical'].includes(lvl)) riskLevel = lvl as RiskAssessment['riskLevel'];
+            }
+            if (Array.isArray(aiTyped.factors)) {
+              factors = aiTyped.factors.map((f: AIRawFactor, idx: number): RiskFactor => ({
+                id: f.id || `ai_${idx}`,
+                category: f.category || 'General',
+                factor: f.factor || f.name || 'Unknown Factor',
+                description: f.description || 'No description',
+                impact: (['low','medium','high','critical'].includes((f.impact||'').toLowerCase()) ? (f.impact as RiskFactor['impact']) : 'medium'),
+                probability: (['low','medium','high'].includes((f.probability||'').toLowerCase()) ? (f.probability as RiskFactor['probability']) : 'medium'),
+                mitigation: Array.isArray(f.mitigation) ? f.mitigation : []
+              }));
+            }
+            if (Array.isArray(aiTyped.recommendations)) recommendations = aiTyped.recommendations;
         }
-      });
-    });
+      } catch (e) {
+        toast.error('AI assessment failed, using manual logic');
+      } finally {
+        setAiLoading(false);
+      }
+    }
 
-    // Add custom risks if provided
-    if (customRisks.trim()) {
-      customRisks.split('\n').forEach(risk => {
-        if (risk.trim()) {
-          factors.push({
-            id: `custom_${Date.now()}_${Math.random()}`,
-            category: 'Custom',
-            factor: risk.trim(),
-            description: risk.trim(),
-            impact: 'medium',
-            probability: 'medium',
-            mitigation: ['Monitor closely', 'Develop mitigation plan']
-          });
-        }
+    // If AI not enabled or failed to produce factors, fall back to manual construction
+    if (!aiEnabled || factors.length === 0) {
+      factors = [];
+      selectedRisks.forEach(riskId => {
+        riskCategories.forEach(category => {
+          const factor = category.factors.find(f => f.id === riskId);
+          if (factor) {
+            factors.push({
+              ...factor,
+              category: category.category,
+              description: `${factor.factor} in ${location}`,
+              mitigation: generateRecommendations(riskLevel, [riskId])
+            });
+          }
+        });
       });
+      if (customRisks.trim()) {
+        customRisks.split('\n').forEach(risk => {
+          if (risk.trim()) {
+            factors.push({
+              id: `custom_${Date.now()}_${Math.random()}`,
+              category: 'Custom',
+              factor: risk.trim(),
+              description: risk.trim(),
+              impact: 'medium',
+              probability: 'medium',
+              mitigation: ['Monitor closely', 'Develop mitigation plan']
+            });
+          }
+        });
+      }
+      if (recommendations.length === 0) {
+        recommendations = generateRecommendations(riskLevel, selectedRisks);
+      }
     }
 
     const newAssessment: RiskAssessment = {
-      supplierName,
-      location,
-      industry,
-      riskScore,
-      riskLevel,
-      factors,
-      recommendations: generateRecommendations(riskLevel, selectedRisks),
-      lastUpdated: new Date().toISOString()
+        supplierName,
+        location,
+        industry,
+        riskScore,
+        riskLevel,
+        factors,
+        recommendations: recommendations.length ? recommendations : generateRecommendations(riskLevel, selectedRisks),
+        lastUpdated: new Date().toISOString()
     };
 
     setAssessment(newAssessment);
@@ -279,6 +356,14 @@ const SupplyChainRiskAssessment = () => {
           Evaluate and mitigate risks in your supply chain. Identify potential vulnerabilities
           and develop strategies to ensure business continuity and resilience.
         </p>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <AIBadge />
+          <div className="flex items-center gap-2 text-sm">
+            <Cpu className={`h-4 w-4 ${aiEnabled ? 'text-blue-600' : 'text-gray-400'}`} />
+            <span className="text-gray-700">AI Mode</span>
+            <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+          </div>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -424,9 +509,9 @@ const SupplyChainRiskAssessment = () => {
 
           {/* Assessment Actions */}
           <div className="flex justify-center gap-4">
-            <Button onClick={performAssessment} size="lg">
+            <Button onClick={performAssessment} size="lg" disabled={aiLoading}>
               <Shield className="h-5 w-5 mr-2" />
-              Perform Risk Assessment
+              {aiLoading ? 'Running AI...' : 'Perform Risk Assessment'}
             </Button>
             <Button variant="outline" onClick={resetAssessment}>
               Reset Form
@@ -440,7 +525,7 @@ const SupplyChainRiskAssessment = () => {
               {/* Risk Score Overview */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Risk Assessment Results</CardTitle>
+                  <CardTitle className="flex items-center gap-2">Risk Assessment Results {aiEnabled && <AIBadge />}</CardTitle>
                   <CardDescription>
                     Risk assessment for {assessment.supplierName} in {assessment.location}
                   </CardDescription>

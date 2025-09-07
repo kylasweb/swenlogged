@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { puterService } from '../../utils/puterService';
+import { containerLoadPrompt } from '../../utils/toolPrompts';
+import { extractJson } from '../../utils/aiJson';
 import Header from '../../components/Header';
 import Footer from '../../components/Footer';
+import AIBadge from '../../components/ui/AIBadge';
 import { Package, Layers, Box, Calculator, Maximize, BarChart3, Truck, Container } from 'lucide-react';
 
 interface ContainerOptimization {
@@ -31,6 +35,19 @@ const ContainerLoadOptimizerPage = () => {
   const [optimization, setOptimization] = useState<ContainerOptimization | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
 
+  // Hydrate from cache
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('container-optimizer:last');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.packages) setPackages(parsed.packages);
+        if (parsed.containerType) setContainerType(parsed.containerType);
+        if (parsed.optimization) setOptimization(parsed.optimization);
+      }
+    } catch {/* ignore */}
+  }, []);
+
   const containerTypes = [
     { id: '20ft', name: '20ft Standard', length: 589, width: 235, height: 239, maxWeight: 28000 },
     { id: '40ft', name: '40ft Standard', length: 1203, width: 235, height: 239, maxWeight: 30000 },
@@ -52,7 +69,7 @@ const ContainerLoadOptimizerPage = () => {
     setPackages([...packages, newPackage]);
   };
 
-  const updatePackage = (id: number, field: string, value: any) => {
+  const updatePackage = (id: number, field: keyof typeof packages[number], value: string | number | boolean) => {
     setPackages(packages.map(pkg => 
       pkg.id === id ? { ...pkg, [field]: value } : pkg
     ));
@@ -64,40 +81,60 @@ const ContainerLoadOptimizerPage = () => {
 
   const optimizeLoad = async () => {
     setIsOptimizing(true);
-
-    // Simulate optimization calculation
-    await new Promise(resolve => setTimeout(resolve, 2500));
-
-    const selectedContainer = containerTypes.find(c => c.id === containerType)!;
-    const totalVolume = packages.reduce((sum, pkg) => 
-      sum + (pkg.length * pkg.width * pkg.height * pkg.quantity), 0
-    );
-    const containerVolume = selectedContainer.length * selectedContainer.width * selectedContainer.height;
-    const utilization = Math.min((totalVolume / containerVolume) * 100 * 0.85, 95); // 85% efficiency factor
-
-    const mockOptimization: ContainerOptimization = {
-      containerType: selectedContainer.name,
-      utilization,
-      totalItems: packages.reduce((sum, pkg) => sum + pkg.quantity, 0),
-      arrangement: packages.map((pkg, index) => ({
-        item: pkg.name,
-        quantity: pkg.quantity,
-        dimensions: `${pkg.length}x${pkg.width}x${pkg.height}cm`,
-        position: `Layer ${index + 1}, ${pkg.stackable ? 'Stackable' : 'Non-stackable'}`,
-        stackable: pkg.stackable
-      })),
-      savings: Math.floor(Math.random() * 2000 + 500),
-      recommendations: [
-        'Rotate Electronics Boxes 90° for better fit',
-        'Stack items by weight distribution',
-        'Consider using dunnage for fragile items',
-        `Current utilization: ${utilization.toFixed(1)}%`,
-        'Recommended loading sequence provided'
-      ]
-    };
-
-    setOptimization(mockOptimization);
-    setIsOptimizing(false);
+    try {
+      await puterService.ensureReady(4000);
+      const prompt = containerLoadPrompt({ containerType, packages });
+      const aiResp = await puterService.makeAIRequest(prompt, { temperature: 0.2, maxTokens: 800 });
+      const text = typeof aiResp === 'string' ? aiResp : (aiResp as { text?: string }).text || '';
+      const json = extractJson<{
+        utilization?: string|number;
+        savingsUSD?: number|string;
+        arrangement?: Array<{ item: string; quantity: number; dimensions: string; layer: number; stackable: boolean }>;
+        recommendations?: string[];
+      }>(text);
+      if (json) {
+        const selectedContainer = containerTypes.find(c => c.id === containerType)!;
+        const utilNum = typeof json.utilization === 'string' ? parseFloat(json.utilization) : (json.utilization || 0);
+  const opt = {
+          containerType: selectedContainer.name,
+            utilization: utilNum,
+            totalItems: packages.reduce((s,p)=>s+p.quantity,0),
+            arrangement: (json.arrangement || []).map(a=>({
+              item: a.item, quantity: a.quantity, dimensions: a.dimensions, position: `Layer ${a.layer}`, stackable: a.stackable
+            })),
+            savings: typeof json.savingsUSD === 'string' ? parseInt(json.savingsUSD) || 0 : (json.savingsUSD || 0),
+            recommendations: json.recommendations || []
+  } as ContainerOptimization;
+  setOptimization(opt);
+  try { localStorage.setItem('container-optimizer:last', JSON.stringify({ packages, containerType, optimization: opt })); } catch {/* ignore */}
+      } else {
+        // fallback to previous simulation if parse fails
+        const selectedContainer = containerTypes.find(c => c.id === containerType)!;
+        const totalVolume = packages.reduce((sum, pkg) => sum + (pkg.length * pkg.width * pkg.height * pkg.quantity), 0);
+        const containerVolume = selectedContainer.length * selectedContainer.width * selectedContainer.height;
+        const utilization = Math.min((totalVolume / containerVolume) * 100 * 0.85, 95);
+  const opt = {
+          containerType: selectedContainer.name,
+          utilization,
+          totalItems: packages.reduce((sum, pkg) => sum + pkg.quantity, 0),
+          arrangement: packages.map((pkg, index) => ({
+            item: pkg.name,
+            quantity: pkg.quantity,
+            dimensions: `${pkg.length}x${pkg.width}x${pkg.height}cm`,
+            position: `Layer ${index + 1}, ${pkg.stackable ? 'Stackable' : 'Non-stackable'}`,
+            stackable: pkg.stackable
+          })),
+          savings: Math.floor(Math.random() * 2000 + 500),
+          recommendations: ['AI parse failed; using heuristic simulation']
+  } as ContainerOptimization;
+  setOptimization(opt);
+  try { localStorage.setItem('container-optimizer:last', JSON.stringify({ packages, containerType, optimization: opt })); } catch {/* ignore */}
+      }
+    } catch (err) {
+      console.error('Container load AI error', err);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   return (
@@ -106,9 +143,12 @@ const ContainerLoadOptimizerPage = () => {
       <main className="pt-16 min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
         <div className="mx-auto max-w-7xl px-6 lg:px-8 py-12">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-              Container Load Optimizer
-            </h1>
+            <div className="flex items-center justify-center gap-3">
+              <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+                Container Load Optimizer
+              </h1>
+              <AIBadge />
+            </div>
             <p className="mt-6 text-lg leading-8 text-gray-600">
               Maximize container space utilization and reduce shipping costs with AI-powered load planning
             </p>

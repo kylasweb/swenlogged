@@ -1,7 +1,22 @@
 import React from "react";
 
+interface OptimizedStopItem {
+  order: number;
+  name?: string;
+  location?: string;
+  priority?: string;
+  distanceFromPrevious?: string;
+  drivingTime?: string;
+  arrivalTime?: string;
+  estimatedArrival?: string;
+}
+
+interface OptimizedRouteShape {
+  optimizedOrder?: OptimizedStopItem[];
+}
+
 interface RouteOptimizerDetailsPanelProps {
-  optimizedRoute: any;
+  optimizedRoute: OptimizedRouteShape | null;
   getPriorityColor: (priority: string) => string;
 }
 
@@ -17,7 +32,7 @@ const RouteOptimizerDetailsPanel: React.FC<RouteOptimizerDetailsPanelProps> = ({
     <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
       <h3 className="text-xl font-bold text-gray-800 mb-4">Optimized Stop Sequence</h3>
       <div className="space-y-3">
-        {optimizedRoute.optimizedOrder.map((stop: any, index: number) => (
+  {optimizedRoute.optimizedOrder.map((stop: OptimizedStopItem, index: number) => (
           <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-medium mr-4">

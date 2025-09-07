@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,9 +7,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { MapPin, Clock, AlertTriangle, CheckCircle, TrendingUp, Ship, Anchor, Activity } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { portPerformancePrompt } from '@/utils/toolPrompts';
 
 const PortPerformanceDashboardPage: React.FC = () => {
   const [selectedRegion, setSelectedRegion] = useState('global');
+  const [aiMode, setAiMode] = useState(true);
+  const [focusPort, setFocusPort] = useState('Port of Shanghai');
+
+  interface AIPortPerf {
+    congestionLevel: 'Low' | 'Moderate' | 'High' | 'Severe';
+    avgWaitingHours: number;
+    throughputTEU: number;
+    risks: string[];
+    recommendations: string[];
+    summary: string;
+  }
+
+  const cacheKey = `port-perf:${focusPort}`;
+  const { data: aiPort, run: runAI, loading: aiLoading, error: aiError } = useAICachedAction<AIPortPerf>({
+    cacheKey,
+    buildPrompt: () => portPerformancePrompt({ portName: focusPort, region: selectedRegion }),
+    parseShape: () => null
+  });
+
+  useEffect(() => {
+    if (aiMode && focusPort) runAI();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPort, aiMode]);
 
   const portData = [
     {
@@ -160,6 +187,24 @@ const PortPerformanceDashboardPage: React.FC = () => {
                       <span className="text-sm">Congested</span>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3 ml-auto">
+                    <div className="hidden md:flex items-center gap-2">
+                      <AIBadge />
+                      <span className="text-xs text-gray-500">AI Mode</span>
+                      <Switch checked={aiMode} onCheckedChange={(v)=>setAiMode(!!v)} />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Focus Port</label>
+                      <Select value={focusPort} onValueChange={setFocusPort}>
+                        <SelectTrigger className="w-56">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {portData.map(p=> <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -252,6 +297,57 @@ const PortPerformanceDashboardPage: React.FC = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* AI Port Insights */}
+                {aiMode && (
+                  <Card className="border-indigo-200 bg-indigo-50/60">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-indigo-600" />
+                        AI Port Insights {aiLoading && <span className="text-xs font-normal text-indigo-500">(Analyzing...)</span>}
+                      </CardTitle>
+                      <CardDescription>
+                        Live AI analysis for <span className="font-medium">{focusPort}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {aiError && <div className="text-sm text-red-600 mb-2">AI Error: {aiError}</div>}
+                      {aiPort ? (
+                        <div className="space-y-4">
+                          <div className="grid md:grid-cols-3 gap-4 text-sm">
+                            <div className="p-3 rounded bg-white shadow-sm border">
+                              <p className="text-gray-600">Congestion Level</p>
+                              <p className="font-semibold">{aiPort.congestionLevel}</p>
+                            </div>
+                            <div className="p-3 rounded bg-white shadow-sm border">
+                              <p className="text-gray-600">Avg Waiting (hrs)</p>
+                              <p className="font-semibold">{aiPort.avgWaitingHours}</p>
+                            </div>
+                            <div className="p-3 rounded bg-white shadow-sm border">
+                              <p className="text-gray-600">Throughput (TEU est)</p>
+                              <p className="font-semibold">{aiPort.throughputTEU.toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">Key Risks</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {(aiPort.risks || []).slice(0,6).map((r,i)=> <Badge key={i} variant="outline" className="text-xs">{r}</Badge>)}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium mb-2">Recommendations</h4>
+                            <ul className="list-disc list-inside text-sm space-y-1">
+                              {(aiPort.recommendations || []).slice(0,5).map((rec,i)=> <li key={i}>{rec}</li>)}
+                            </ul>
+                          </div>
+                          {aiPort.summary && <p className="text-sm text-gray-700 italic">{aiPort.summary}</p>}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-500">Initiate AI analysis by selecting a focus port.</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </TabsContent>
 
               <TabsContent value="analytics" className="space-y-6">

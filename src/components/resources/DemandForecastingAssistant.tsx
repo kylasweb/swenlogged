@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, BarChart3, Calendar, Target, AlertTriangle, CheckCircle, Brain, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { demandForecastPrompt } from '@/utils/toolPrompts';
+import AIBadge from '@/components/ui/AIBadge';
 
 interface ForecastData {
   product: string;
@@ -36,8 +39,10 @@ const DemandForecastingAssistant = () => {
   const [timeframe, setTimeframe] = useState('3months');
   const [historicalData, setHistoricalData] = useState('');
   const [forecast, setForecast] = useState<ForecastData | null>(null);
+  const [region, setRegion] = useState('Global');
+  const [season, setSeason] = useState('General');
 
-  // Mock historical data for demonstration
+  // Mock historical data for demonstration (declared before usage for TS correctness)
   const mockHistoricalData: MarketData[] = [
     { date: '2024-01', demand: 1200, price: 45.50, competition: 3.2 },
     { date: '2024-02', demand: 1350, price: 46.20, competition: 3.1 },
@@ -53,6 +58,55 @@ const DemandForecastingAssistant = () => {
     { date: '2024-12', demand: 1950, price: 51.80, competition: 2.5 }
   ];
 
+  // derive historical average demand from mock data (simple mean)
+  const historicalAvg = Math.round(
+    mockHistoricalData.reduce((sum, d) => sum + d.demand, 0) / mockHistoricalData.length
+  );
+
+  // AI demand forecast hook
+  const { data: aiData, loading: aiLoading, error: aiError, run: runAIForecast } = useAICachedAction<{
+    forecastUnitsNext12Weeks: { week: number; units: number }[];
+    peakWeeks: number[];
+    confidence: number;
+    drivers: string[];
+    riskFlags: string[];
+    summary: string;
+  }>({
+    cacheKey: 'demand-forecast:last',
+    buildPrompt: () => demandForecastPrompt({
+      sku: productName || 'Unknown SKU',
+      region: region || 'Global',
+      historicalAvg: historicalAvg || 0,
+      season: season || 'General',
+      trendNote: historicalData.slice(0, 400)
+    }),
+    parseShape: () => null
+  });
+
+  // When AI data arrives, synthesize legacy forecast object for existing UI pieces
+  useEffect(() => {
+    if (aiData && productName) {
+      const currentDemand = mockHistoricalData[mockHistoricalData.length - 1].demand;
+      const horizonTotal = aiData.forecastUnitsNext12Weeks.reduce((s, w) => s + w.units, 0);
+      const avgFuture = Math.round(horizonTotal / (aiData.forecastUnitsNext12Weeks.length || 1));
+      const predictedDemand = avgFuture; // adapt to existing structure expecting single predicted value
+      const trend = predictedDemand > currentDemand ? 'up' : predictedDemand < currentDemand ? 'down' : 'stable';
+      setForecast({
+        product: productName,
+        currentDemand,
+        predictedDemand,
+        confidence: aiData.confidence,
+        trend: trend as 'up' | 'down' | 'stable',
+        seasonality: season,
+        factors: aiData.drivers || []
+      });
+      setActiveTab('results');
+    }
+    // mockHistoricalData is static mock list; we intentionally omit to avoid unnecessary effect triggers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiData, productName, season]);
+
+
   const industries = [
     'Electronics', 'Automotive Parts', 'Textiles', 'Food & Beverage',
     'Pharmaceuticals', 'Industrial Equipment', 'Consumer Goods', 'Chemicals'
@@ -65,51 +119,13 @@ const DemandForecastingAssistant = () => {
     { value: '1year', label: '1 Year', multiplier: 12 }
   ];
 
-  const generateForecast = () => {
+  const generateForecast = async () => {
     if (!productName || !industry) {
       toast.error('Please fill in all required fields');
       return;
     }
-
-    // Simulate AI forecasting logic
-    const currentDemand = mockHistoricalData[mockHistoricalData.length - 1].demand;
-    const avgGrowth = 0.08; // 8% average monthly growth
-    const selectedTimeframe = timeframes.find(t => t.value === timeframe);
-    const months = selectedTimeframe?.multiplier || 3;
-
-    // Calculate predicted demand with some randomness
-    const predictedDemand = Math.round(currentDemand * Math.pow(1 + avgGrowth, months) * (0.9 + Math.random() * 0.2));
-    const confidence = Math.round(75 + Math.random() * 20); // 75-95% confidence
-
-    // Determine trend
-    const recentTrend = predictedDemand > currentDemand ? 'up' : predictedDemand < currentDemand ? 'down' : 'stable';
-
-    // Generate factors based on industry and timeframe
-    const factors = [
-      'Seasonal demand patterns',
-      'Market competition changes',
-      'Economic indicators',
-      'Supply chain disruptions',
-      'Consumer behavior trends'
-    ];
-
-    // Determine seasonality
-    const seasonality = months <= 3 ? 'Short-term fluctuations' :
-                      months <= 6 ? 'Quarterly patterns' : 'Annual cycles';
-
-    const forecastData: ForecastData = {
-      product: productName,
-      currentDemand,
-      predictedDemand,
-      confidence,
-      trend: recentTrend,
-      seasonality,
-      factors
-    };
-
-    setForecast(forecastData);
-    setActiveTab('results');
-    toast.success('Demand forecast generated successfully');
+    await runAIForecast();
+    if (!aiError) toast.success('AI demand forecast requested');
   };
 
   const getTrendIcon = (trend: string) => {
@@ -129,10 +145,13 @@ const DemandForecastingAssistant = () => {
   };
 
   // Generate forecast chart data
-  const forecastChartData = forecast ? [
-    { month: 'Current', demand: forecast.currentDemand, type: 'Current' },
-    { month: 'Predicted', demand: forecast.predictedDemand, type: 'Predicted' }
-  ] : [];
+  // If AI data present build richer weekly chart else fallback to simple
+  const forecastChartData = aiData?.forecastUnitsNext12Weeks?.length
+    ? aiData.forecastUnitsNext12Weeks.map(w => ({ month: `W${w.week}`, demand: w.units, type: 'AI' }))
+    : forecast ? [
+      { month: 'Current', demand: forecast.currentDemand, type: 'Current' },
+      { month: 'Predicted', demand: forecast.predictedDemand, type: 'Predicted' }
+    ] : [];
 
   // Pie chart data for factors
   const factorsData = forecast ? forecast.factors.map((factor, index) => ({
@@ -214,6 +233,34 @@ const DemandForecastingAssistant = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="region">Region</Label>
+                  <Select value={region} onValueChange={setRegion}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select region" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['Global','North America','Europe','Asia','LATAM','Middle East','Africa'].map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="season">Season</Label>
+                  <Select value={season} onValueChange={setSeason}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select season" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['General','Spring','Summer','Autumn','Winter','PeakHoliday','BackToSchool'].map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -264,11 +311,13 @@ const DemandForecastingAssistant = () => {
           </Card>
 
           {/* Generate Forecast Button */}
-          <div className="flex justify-center">
-            <Button onClick={generateForecast} size="lg" className="bg-purple-600 hover:bg-purple-700">
+          <div className="flex justify-center gap-4 items-center">
+            <Button onClick={generateForecast} size="lg" disabled={aiLoading} className="bg-purple-600 hover:bg-purple-700">
               <Brain className="h-5 w-5 mr-2" />
-              Generate AI Forecast
+              {aiLoading ? 'Generating...' : 'Generate AI Forecast'}
             </Button>
+            {aiError && <span className="text-sm text-red-600">{aiError}</span>}
+            {aiData && <AIBadge />}
           </div>
         </TabsContent>
 
@@ -278,7 +327,14 @@ const DemandForecastingAssistant = () => {
               {/* Forecast Summary */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Forecast Summary</CardTitle>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="flex items-center gap-2">
+                      Forecast Summary {aiData && <AIBadge />}
+                    </CardTitle>
+                    {aiData?.confidence != null && (
+                      <span className="text-xs text-gray-500">AI Confidence: {aiData.confidence}%</span>
+                    )}
+                  </div>
                   <CardDescription>
                     AI-generated demand forecast for {forecast.product}
                   </CardDescription>
@@ -334,7 +390,7 @@ const DemandForecastingAssistant = () => {
               </Card>
 
               {/* Forecast Chart */}
-              <Card>
+        <Card>
                 <CardHeader>
                   <CardTitle>Demand Forecast Visualization</CardTitle>
                 </CardHeader>
@@ -344,7 +400,7 @@ const DemandForecastingAssistant = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
                       <YAxis />
-                      <Tooltip formatter={(value) => [value.toLocaleString(), 'Demand']} />
+          <Tooltip formatter={(value) => [Number(value).toLocaleString(), 'Units']} />
                       <Bar dataKey="demand" fill="#8884d8" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -449,6 +505,17 @@ const DemandForecastingAssistant = () => {
                         </div>
                       </div>
                     </div>
+                    {aiData?.summary && (
+                      <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div className="flex items-start gap-3">
+                          <Brain className="h-5 w-5 text-purple-600 mt-0.5" />
+                          <div>
+                            <h4 className="font-medium text-purple-900">AI Summary</h4>
+                            <p className="text-sm text-purple-800">{aiData.summary}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

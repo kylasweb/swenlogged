@@ -9,7 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, AlertTriangle, XCircle, FileText, Globe, Shield, Truck } from 'lucide-react';
+import { CheckCircle, AlertTriangle, XCircle, FileText, Globe, Shield, Truck, Cpu } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { complianceGapAnalysisPrompt } from '@/utils/toolPrompts';
 
 interface ComplianceResult {
   overallStatus: 'pass' | 'warning' | 'fail';
@@ -31,6 +35,16 @@ interface ComplianceResult {
   recommendations: string[];
 }
 
+interface AIComplianceRaw {
+  overallStatus?: string;
+  customsCompliance?: { status?: string; requirements?: string[]; notes?: string };
+  regulatoryCompliance?: { status?: string; requirements?: string[]; notes?: string };
+  tradeRestrictions?: { status?: string; restrictions?: string[]; notes?: string };
+  missingDocuments?: string[];
+  riskNotes?: string[];
+  recommendations?: string[];
+}
+
 const ComplianceCheckerPage: React.FC = () => {
   const [shipmentData, setShipmentData] = useState({
     originCountry: '',
@@ -43,11 +57,65 @@ const ComplianceCheckerPage: React.FC = () => {
 
   const [complianceResults, setComplianceResults] = useState<ComplianceResult | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+
+  const runComplianceAI = useAICachedAction(async () => {
+    if (!shipmentData.originCountry || !shipmentData.destinationCountry || !shipmentData.productCategory) return null;
+    const value = parseFloat(shipmentData.productValue || '0') || 0;
+    return complianceGapAnalysisPrompt({
+      origin: shipmentData.originCountry,
+      destination: shipmentData.destinationCountry,
+      productCategory: shipmentData.productCategory,
+      valueUSD: value,
+      description: shipmentData.productDescription,
+      specialRequirements: shipmentData.specialRequirements
+    });
+  }, [shipmentData.originCountry, shipmentData.destinationCountry, shipmentData.productCategory, shipmentData.productValue, shipmentData.productDescription, shipmentData.specialRequirements], {
+    cacheKey: `compliance:${shipmentData.originCountry}:${shipmentData.destinationCountry}:${shipmentData.productCategory}:${shipmentData.productValue}`
+  });
 
   const checkCompliance = async () => {
     setIsChecking(true);
-
-    // Simulate API call - in real app this would call a compliance service
+    if (aiEnabled) {
+      try {
+        const aiData = await runComplianceAI();
+        if (aiData && typeof aiData === 'object') {
+          const raw = aiData as AIComplianceRaw;
+          const mapped: ComplianceResult = {
+            overallStatus: (raw.overallStatus && ['pass','warning','fail'].includes(raw.overallStatus)) ? raw.overallStatus as ComplianceResult['overallStatus'] : 'warning',
+            customsCompliance: {
+              status: raw.customsCompliance?.status && ['pass','warning','fail'].includes(raw.customsCompliance.status) ? raw.customsCompliance.status as ComplianceResult['overallStatus'] : 'warning',
+              requirements: raw.customsCompliance?.requirements || [],
+              notes: raw.customsCompliance?.notes || ''
+            },
+            regulatoryCompliance: {
+              status: raw.regulatoryCompliance?.status && ['pass','warning','fail'].includes(raw.regulatoryCompliance.status) ? raw.regulatoryCompliance.status as ComplianceResult['overallStatus'] : 'warning',
+              requirements: raw.regulatoryCompliance?.requirements || [],
+              notes: raw.regulatoryCompliance?.notes || ''
+            },
+            tradeRestrictions: {
+              status: raw.tradeRestrictions?.status && ['pass','warning','fail'].includes(raw.tradeRestrictions.status) ? raw.tradeRestrictions.status as ComplianceResult['overallStatus'] : 'pass',
+              restrictions: raw.tradeRestrictions?.restrictions || [],
+              notes: raw.tradeRestrictions?.notes || ''
+            },
+            recommendations: raw.recommendations || []
+          };
+          // Merge missing docs & risk notes into recommendations tail if present
+          if (Array.isArray(raw.missingDocuments) && raw.missingDocuments.length) {
+            mapped.recommendations.push('Missing Documents: ' + raw.missingDocuments.join(', '));
+          }
+            if (Array.isArray(raw.riskNotes) && raw.riskNotes.length) {
+              mapped.recommendations.push(...raw.riskNotes.map((r: string) => `Risk: ${r}`));
+            }
+          setComplianceResults(mapped);
+          setIsChecking(false);
+          return;
+        }
+      } catch (e) {
+        // fall back
+      }
+    }
+    // fallback legacy mock
     setTimeout(() => {
       const mockResults: ComplianceResult = {
         overallStatus: 'warning',
@@ -81,10 +149,9 @@ const ComplianceCheckerPage: React.FC = () => {
           'Check for any country-specific labeling requirements'
         ]
       };
-
       setComplianceResults(mockResults);
       setIsChecking(false);
-    }, 2000);
+    }, 1500);
   };
 
   const getStatusIcon = (status: string) => {
@@ -118,12 +185,17 @@ const ComplianceCheckerPage: React.FC = () => {
         <div className="bg-gradient-to-r from-teal-600 to-cyan-700 text-white py-16">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                Compliance Checker
+              <h1 className="text-4xl md:text-5xl font-bold mb-6 flex items-center justify-center gap-3">
+                Compliance Checker {aiEnabled && <AIBadge />}
               </h1>
               <p className="text-xl md:text-2xl mb-8 text-teal-100">
                 Verify shipments meet destination country requirements
               </p>
+              <div className="flex items-center justify-center gap-2 mb-4 text-sm">
+                <Cpu className={`h-4 w-4 ${aiEnabled ? 'text-white' : 'text-teal-200'}`} />
+                <span>AI Mode</span>
+                <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+              </div>
               <div className="flex flex-wrap justify-center gap-4 mb-8">
                 <Badge variant="secondary" className="text-lg px-4 py-2">
                   <Shield className="w-4 h-4 mr-2" />
@@ -257,7 +329,7 @@ const ComplianceCheckerPage: React.FC = () => {
                     <CardHeader>
                       <CardTitle className="flex items-center">
                         {getStatusIcon(complianceResults.overallStatus)}
-                        <span className="ml-2">Compliance Results</span>
+                        <span className="ml-2">Compliance Results {aiEnabled && <AIBadge />}</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">

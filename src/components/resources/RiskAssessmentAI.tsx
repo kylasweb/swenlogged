@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, Shield, Cloud, Wind, Waves, Thermometer, MapPin, Clock, AlertCircle, CheckCircle, XCircle, Navigation, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { logisticsRiskAssessmentPrompt } from '@/utils/toolPrompts';
 
 interface RiskFactor {
   id: string;
@@ -54,6 +58,27 @@ const RiskAssessmentAI = () => {
   const [urgency, setUrgency] = useState('standard');
   const [cargoValue, setCargoValue] = useState('');
   const [assessment, setAssessment] = useState<RiskAssessment | null>(null);
+  const [aiMode, setAiMode] = useState(true);
+
+  interface AIRiskResponse {
+    overallRisk: 'Low' | 'Medium' | 'High';
+    score: number;
+    factors: { name: string; impact: 'Low' | 'Medium' | 'High'; rationale: string }[];
+    mitigations: string[];
+    watchItems: string[];
+  }
+
+  const cacheKey = `risk-assessment:${origin}:${destination}:${transportMode}`;
+  const { data: aiRisk, run: runAIRisk, loading: aiLoading, error: aiError } = useAICachedAction<AIRiskResponse>({
+    cacheKey,
+    buildPrompt: () => logisticsRiskAssessmentPrompt({
+      lane: `${origin || 'UNKNOWN'} -> ${destination || 'UNKNOWN'}`,
+      mode: transportMode,
+      commodity: 'General cargo',
+      incoterm: urgency === 'critical' ? 'DAP' : 'FOB'
+    }),
+    parseShape: () => null
+  });
 
   const transportModes = [
     { value: 'sea', label: 'Sea Freight', icon: '🚢' },
@@ -81,23 +106,21 @@ const RiskAssessmentAI = () => {
       toast.error('Please select both origin and destination');
       return;
     }
-
-    // Simulate AI risk analysis
-    const riskScore = Math.round(25 + Math.random() * 60); // 25-85 risk score
+    if (aiMode) {
+      runAIRisk();
+      setActiveTab('results');
+      toast.message('Running AI risk assessment...');
+      return;
+    }
+    // Legacy local mock path
+    const riskScore = Math.round(25 + Math.random() * 60);
     const overallRiskLevel = riskScore < 35 ? 'low' : riskScore < 55 ? 'medium' : riskScore < 75 ? 'high' : 'critical';
-
-    // Generate route segments based on transport mode
     const segments = generateRouteSegments(origin, destination, transportMode);
-    const totalDistance = segments.reduce((sum, seg) => sum + seg.distance, 0);
-    const totalDuration = segments.reduce((sum, seg) => sum + seg.duration, 0);
-
-    // Generate recommendations based on risk level
+    const totalDistance = segments.reduce((s, seg) => s + seg.distance, 0);
+    const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0);
     const recommendations = generateRecommendations(overallRiskLevel, transportMode, urgency);
-
-    // Generate alternative routes
     const alternativeRoutes = generateAlternativeRoutes(origin, destination, transportMode);
-
-    const riskAssessment: RiskAssessment = {
+    setAssessment({
       routeId: `RT-${Date.now()}`,
       origin,
       destination,
@@ -109,12 +132,53 @@ const RiskAssessmentAI = () => {
       recommendations,
       alternativeRoutes,
       lastUpdated: new Date().toISOString()
-    };
-
-    setAssessment(riskAssessment);
+    });
     setActiveTab('results');
-    toast.success('AI risk assessment completed');
+    toast.success('Local risk assessment generated');
   };
+
+  // When AI data arrives, map into existing assessment shape
+  useEffect(() => {
+    if (aiMode && aiRisk && origin && destination) {
+      const overall = aiRisk.overallRisk.toLowerCase() as 'low' | 'medium' | 'high';
+      const severityMap: Record<string, 'low' | 'medium' | 'high' | 'critical'> = { low: 'low', medium: 'medium', high: 'high' };
+      const segments = generateRouteSegments(origin, destination, transportMode);
+      // Attach AI factors to first segment risks
+      if (segments.length) {
+        const first = segments[0];
+        const aiFactors: RiskFactor[] = aiRisk.factors.slice(0, 6).map((f, idx) => ({
+          id: `ai-${idx}`,
+            category: 'AI Factor',
+            factor: f.name,
+            severity: severityMap[f.impact.toLowerCase()] || 'medium',
+            probability: 0,
+            description: f.rationale,
+            impact: f.impact
+        }));
+        first.risks = [...aiFactors, ...first.risks];
+      }
+      const totalDistance = segments.reduce((s, seg) => s + seg.distance, 0);
+      const totalDuration = segments.reduce((s, seg) => s + seg.duration, 0);
+      const recs = aiRisk.mitigations && aiRisk.mitigations.length
+        ? aiRisk.mitigations
+        : generateRecommendations(overall, transportMode, urgency);
+      const alternativeRoutes = generateAlternativeRoutes(origin, destination, transportMode);
+      setAssessment({
+        routeId: `AI-RT-${Date.now()}`,
+        origin,
+        destination,
+        totalDistance,
+        estimatedDuration: totalDuration,
+        overallRiskLevel: overall,
+        riskScore: aiRisk.score,
+        routeSegments: segments,
+        recommendations: [...recs, ...(aiRisk.watchItems || []).map(w => `Watch: ${w}`)],
+        alternativeRoutes,
+        lastUpdated: new Date().toISOString()
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiRisk, aiMode, origin, destination, transportMode, urgency]);
 
   const generateRouteSegments = (from: string, to: string, mode: string): RouteSegment[] => {
     const segments: RouteSegment[] = [];
@@ -335,7 +399,7 @@ const RiskAssessmentAI = () => {
         </TabsList>
 
         <TabsContent value="assessment" className="space-y-6">
-          {/* Route Information */}
+          {/* Route Information & AI Mode */}
           <Card>
             <CardHeader>
               <CardTitle>Route Information</CardTitle>
@@ -344,6 +408,16 @@ const RiskAssessmentAI = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <AIBadge />
+                  <span className="text-xs text-gray-500">Toggle AI mode to use live assessment</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">AI Mode</span>
+                  <Switch checked={aiMode} onCheckedChange={(v)=>setAiMode(!!v)} />
+                </div>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="origin">Origin *</Label>
@@ -456,13 +530,14 @@ const RiskAssessmentAI = () => {
             </CardContent>
           </Card>
 
-          {/* Generate Assessment Button */}
+      {/* Generate Assessment Button */}
           <div className="flex justify-center">
             <Button onClick={generateRiskAssessment} size="lg" className="bg-blue-600 hover:bg-blue-700">
-              <Shield className="h-5 w-5 mr-2" />
-              Generate AI Risk Assessment
+        <Shield className="h-5 w-5 mr-2" />
+        {aiMode ? (aiLoading ? 'Analyzing...' : 'Run AI Risk Assessment') : 'Generate Risk Assessment'}
             </Button>
           </div>
+      {aiError && <div className="text-center text-sm text-red-600">AI Error: {aiError}</div>}
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
@@ -491,10 +566,11 @@ const RiskAssessmentAI = () => {
 
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600">Risk Score:</span>
-                        <div className="flex items-center gap-2">
-                          <Progress value={assessment.riskScore} className="w-20" />
-                          <span className="font-bold">{assessment.riskScore}/100</span>
-                        </div>
+                          <div className="flex items-center gap-2">
+                            <Progress value={assessment.riskScore} className="w-20" />
+                            <span className="font-bold">{assessment.riskScore}/100</span>
+                            {aiMode && <AIBadge />}
+                          </div>
                       </div>
                     </div>
 

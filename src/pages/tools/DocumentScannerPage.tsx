@@ -7,12 +7,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Download, Scan, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import AIBadge from '../../components/ui/AIBadge';
+import { puterService } from '../../utils/puterService';
+import { extractJson } from '../../utils/aiJson';
+import { documentExtractionPrompt } from '../../utils/toolPrompts';
 
 const DocumentScannerPage = () => {
   const [scannedText, setScannedText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [extractedData, setExtractedData] = useState<any>(null);
+  interface ExtractedData {
+    documentType: string;
+    bolNumber?: string|null;
+    invoiceNumber?: string|null;
+    totalValue?: string|null;
+    shipper?: string|null;
+    consignee?: string|null;
+    currency?: string|null;
+    incoterms?: string|null;
+    paymentTerms?: string|null;
+    hsCodes?: string[];
+    confidence: number;
+    warnings?: string[];
+  }
+  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,7 +54,7 @@ const DocumentScannerPage = () => {
     setIsProcessing(true);
     
     // Simulate OCR processing
-    setTimeout(() => {
+  setTimeout(async () => {
       const mockExtractedText = `COMMERCIAL INVOICE
 
 Bill of Lading No: BL123456789
@@ -67,20 +85,40 @@ INCOTERMS: CIF London
 Total Invoice Value: USD $25,000.00`;
 
       setScannedText(mockExtractedText);
-      
-      setExtractedData({
-        documentType: 'Commercial Invoice',
-        bolNumber: 'BL123456789',
-        invoiceNumber: 'INV-2024-001',
-        totalValue: '$25,000.00',
-        shipper: 'Acme Corporation',
-        consignee: 'Global Imports Ltd',
-        goods: 'Electronic Components',
-        confidence: 96
-      });
-      
-      setIsProcessing(false);
-      toast.success('Document scanned successfully');
+
+      try {
+        await puterService.ensureReady(4000);
+        const prompt = documentExtractionPrompt(mockExtractedText);
+        const aiResp = await puterService.makeAIRequest(prompt, { temperature: 0.1, maxTokens: 600 });
+        const text = typeof aiResp === 'string' ? aiResp : (aiResp as { text?: string }).text || '';
+        const json = extractJson<{
+          documentType?: string; bolNumber?: string; invoiceNumber?: string; totalValue?: string; shipper?: string; consignee?: string; currency?: string; incoterms?: string; paymentTerms?: string; hsCodes?: string[]; confidence?: number; warnings?: string[];
+        }>(text);
+        if (json) {
+          setExtractedData({
+            documentType: json.documentType || 'Unknown',
+            bolNumber: json.bolNumber || null,
+            invoiceNumber: json.invoiceNumber || null,
+            totalValue: json.totalValue || null,
+            shipper: json.shipper || null,
+            consignee: json.consignee || null,
+            currency: json.currency || null,
+            incoterms: json.incoterms || null,
+            paymentTerms: json.paymentTerms || null,
+            hsCodes: json.hsCodes || [],
+            confidence: json.confidence ?? 0,
+            warnings: json.warnings || []
+          });
+        } else {
+          setExtractedData({ documentType: 'Commercial Invoice', confidence: 50, warnings: ['AI parse failed'] });
+        }
+      } catch (err) {
+        console.error('AI extraction error', err);
+        setExtractedData({ documentType: 'Commercial Invoice', confidence: 40, warnings: ['AI extraction failed'] });
+      } finally {
+        setIsProcessing(false);
+        toast.success('Document scanned successfully');
+      }
     }, 3000);
   };
 
@@ -108,9 +146,12 @@ Total Invoice Value: USD $25,000.00`;
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-2xl text-center mb-12">
               <Scan className="h-16 w-16 text-green-600 mx-auto mb-6" />
-              <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">
-                Document Scanner
-              </h1>
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+                  Document Scanner
+                </h1>
+                <AIBadge />
+              </div>
               <p className="text-lg leading-8 text-gray-600">
                 AI-powered OCR to extract data from shipping documents
               </p>
@@ -181,9 +222,13 @@ Total Invoice Value: USD $25,000.00`;
                         </div>
                         <div className="grid grid-cols-1 gap-2 text-sm">
                           <div><strong>Type:</strong> {extractedData.documentType}</div>
-                          <div><strong>BOL No:</strong> {extractedData.bolNumber}</div>
-                          <div><strong>Invoice No:</strong> {extractedData.invoiceNumber}</div>
-                          <div><strong>Value:</strong> {extractedData.totalValue}</div>
+                          {extractedData.bolNumber && <div><strong>BOL No:</strong> {extractedData.bolNumber}</div>}
+                          {extractedData.invoiceNumber && <div><strong>Invoice No:</strong> {extractedData.invoiceNumber}</div>}
+                          {extractedData.totalValue && <div><strong>Value:</strong> {extractedData.totalValue}</div>}
+                          {extractedData.incoterms && <div><strong>Incoterms:</strong> {extractedData.incoterms}</div>}
+                          {extractedData.paymentTerms && <div><strong>Payment:</strong> {extractedData.paymentTerms}</div>}
+                          {extractedData.hsCodes && extractedData.hsCodes.length > 0 && <div><strong>HS Codes:</strong> {extractedData.hsCodes.join(', ')}</div>}
+                          {extractedData.warnings && extractedData.warnings.length > 0 && <div className="text-yellow-700"><strong>Warnings:</strong> {extractedData.warnings.join('; ')}</div>}
                         </div>
                       </div>
                       

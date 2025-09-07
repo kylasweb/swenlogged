@@ -95,7 +95,7 @@ const ChatbotManager = () => {
     
     try {
       // Wait for Puter.js to be available
-      let attempts = 0;
+  const attempts = 0; // currently unused loop counter placeholder (kept for potential future retry logic)
       const maxAttempts = 50;
       
   // Ensure Puter service is initialized and ready

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3, Calendar, Target, AlertTriangle, Brain, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { pricePredictionPrompt } from '@/utils/toolPrompts';
 
 interface PricePrediction {
   route: string;
@@ -46,6 +50,27 @@ const PricePredictionEngine = () => {
   const [weight, setWeight] = useState('');
   const [timeframe, setTimeframe] = useState('1month');
   const [prediction, setPrediction] = useState<PricePrediction | null>(null);
+  const [aiMode, setAiMode] = useState(true);
+
+  interface AIPricePrediction {
+    weeklyForecast: { week: number; rateUSD: number }[];
+    trend: 'Up' | 'Down' | 'Stable';
+    volatilityPercent: number;
+    drivers: string[];
+    summary: string;
+  }
+
+  const cacheKey = `price-pred:${origin}:${destination}:${cargoType}:${timeframe}`;
+  const { data: aiData, run: runAI, loading: aiLoading, error: aiError } = useAICachedAction<AIPricePrediction>({
+    cacheKey,
+    buildPrompt: () => pricePredictionPrompt({
+      commodity: cargoType || 'General cargo',
+      lane: `${origin || 'UNKNOWN'} -> ${destination || 'UNKNOWN'}`,
+      mode: 'Ocean',
+      periodWeeks: timeframe === '1week' ? 1 : timeframe === '1month' ? 4 : timeframe === '3months' ? 12 : 24
+    }),
+    parseShape: () => null
+  });
 
   // Mock data for demonstration
   const routes = [
@@ -133,33 +158,27 @@ const PricePredictionEngine = () => {
       toast.error('Please fill in all required fields');
       return;
     }
-
+    if (aiMode) {
+      runAI();
+      setActiveTab('results');
+      toast.message('Running AI price prediction...');
+      return;
+    }
+    // Legacy mock path
     const route = `${origin} → ${destination}`;
     const historicalData = generateMockHistoricalData();
     const currentPrice = historicalData[historicalData.length - 1].price;
     const selectedTimeframe = timeframes.find(t => t.value === timeframe);
-
-    // Calculate predicted price based on factors and trends
     const factors = generatePriceFactors();
-    const positiveImpact = factors
-      .filter(f => f.impact === 'positive')
-      .reduce((sum, f) => sum + f.strength, 0);
-    const negativeImpact = factors
-      .filter(f => f.impact === 'negative')
-      .reduce((sum, f) => sum + f.strength, 0);
-
+    const positiveImpact = factors.filter(f => f.impact === 'positive').reduce((s, f) => s + f.strength, 0);
+    const negativeImpact = factors.filter(f => f.impact === 'negative').reduce((s, f) => s + f.strength, 0);
     const netImpact = positiveImpact - negativeImpact;
     const predictedPrice = currentPrice * (1 + (netImpact / 100) * (selectedTimeframe?.multiplier || 1));
-    const confidence = Math.round(75 + Math.random() * 20);
-
-    // Determine trend
+    const confidence = Math.round(70 + Math.random() * 25);
     const priceChange = ((predictedPrice - currentPrice) / currentPrice) * 100;
     const trend = priceChange > 5 ? 'up' : priceChange < -5 ? 'down' : 'stable';
-
-    // Generate recommendations
     const recommendations = generateRecommendations(trend, factors, cargoType);
-
-    const pricePrediction: PricePrediction = {
+    setPrediction({
       route,
       currentPrice: Math.round(currentPrice),
       predictedPrice: Math.round(predictedPrice),
@@ -169,12 +188,47 @@ const PricePredictionEngine = () => {
       factors,
       recommendations,
       historicalData
-    };
-
-    setPrediction(pricePrediction);
+    });
     setActiveTab('results');
-    toast.success('Price prediction generated successfully');
+    toast.success('Local price prediction generated');
   };
+
+  // Map AI data into existing prediction shape when received
+  useEffect(() => {
+    if (aiMode && aiData && origin && destination) {
+      const route = `${origin} → ${destination}`;
+      // Derive current price from last forecast or synthetic baseline
+      const weekly = aiData.weeklyForecast;
+      const current = weekly[0]?.rateUSD || 2000;
+      const last = weekly[weekly.length - 1]?.rateUSD || current;
+      const trendMap: Record<string, 'up' | 'down' | 'stable'> = { Up: 'up', Down: 'down', Stable: 'stable' };
+      const historicalData: MarketData[] = weekly.map((w) => ({
+        date: `W${w.week}`,
+        price: w.rateUSD,
+        volume: Math.round(800 + Math.random() * 600),
+        fuelCost: Math.round(70 + Math.random() * 30),
+        demandIndex: Math.round(40 + Math.random() * 50)
+      }));
+      const factors: PriceFactor[] = (aiData.drivers || []).slice(0, 6).map((d, idx) => ({
+        factor: d,
+        impact: d.toLowerCase().includes('cost') || d.toLowerCase().includes('fuel') ? 'negative' : 'positive',
+        strength: Math.min(40, 10 + (idx * 5) + Math.round(Math.random() * 8)),
+        description: d
+      }));
+      const recommendations = generateRecommendations(trendMap[aiData.trend] || 'stable', factors, cargoType);
+      setPrediction({
+        route,
+        currentPrice: Math.round(current),
+        predictedPrice: Math.round(last),
+        confidence: Math.max(60, 100 - Math.round(aiData.volatilityPercent || 20)),
+        trend: trendMap[aiData.trend] || 'stable',
+        timeframe: `${weekly.length} Weeks`,
+        factors,
+        recommendations: [...recommendations, aiData.summary || ''],
+        historicalData
+      });
+    }
+  }, [aiData, aiMode, origin, destination, cargoType]);
 
   const generateRecommendations = (trend: string, factors: PriceFactor[], cargoType: string): string[] => {
     const recommendations: string[] = [];
@@ -256,7 +310,7 @@ const PricePredictionEngine = () => {
         </TabsList>
 
         <TabsContent value="prediction" className="space-y-6">
-          {/* Route Information */}
+          {/* Route Information & AI Mode */}
           <Card>
             <CardHeader>
               <CardTitle>Shipping Route & Cargo Details</CardTitle>
@@ -265,6 +319,16 @@ const PricePredictionEngine = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <AIBadge />
+                  <span className="text-xs text-gray-500">Toggle AI mode for live rate forecasts</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">AI Mode</span>
+                  <Switch checked={aiMode} onCheckedChange={(v)=>setAiMode(!!v)} />
+                </div>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="origin">Origin *</Label>
@@ -374,13 +438,14 @@ const PricePredictionEngine = () => {
             </CardContent>
           </Card>
 
-          {/* Generate Prediction Button */}
+      {/* Generate Prediction Button */}
           <div className="flex justify-center">
             <Button onClick={generatePrediction} size="lg" className="bg-purple-600 hover:bg-purple-700">
-              <Brain className="h-5 w-5 mr-2" />
-              Generate AI Price Prediction
+        <Brain className="h-5 w-5 mr-2" />
+        {aiMode ? (aiLoading ? 'Analyzing...' : 'Run AI Price Prediction') : 'Generate Price Prediction'}
             </Button>
           </div>
+      {aiError && <div className="text-center text-sm text-red-600">AI Error: {aiError}</div>}
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
@@ -426,6 +491,7 @@ const PricePredictionEngine = () => {
                         <div className="flex items-center gap-2">
                           <Progress value={prediction.confidence} className="w-20" />
                           <span className="font-bold">{prediction.confidence}%</span>
+                          {aiMode && <AIBadge />}
                         </div>
                       </div>
 

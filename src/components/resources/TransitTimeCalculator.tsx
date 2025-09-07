@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Clock, MapPin, Truck, Ship, Plane, Calculator } from "lucide-react";
+import { Clock, MapPin, Truck, Ship, Plane, Calculator, Brain } from "lucide-react";
 import { toast } from "sonner";
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { transitTimePrompt } from '@/utils/toolPrompts';
+import AIBadge from '@/components/ui/AIBadge';
 
 interface TransitTimeResult {
   origin: string;
@@ -32,6 +35,45 @@ const TransitTimeCalculator = () => {
 
   const [result, setResult] = useState<TransitTimeResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [useAI, setUseAI] = useState(true);
+
+  const { data: aiData, loading: aiLoading, error: aiError, run: runAI } = useAICachedAction<{
+    distanceKm: number;
+    minHours: number;
+    maxHours: number;
+    reliability: string;
+    factors: string[];
+    notes: string[];
+  }>({
+    cacheKey: 'transit-time:last',
+    buildPrompt: () => transitTimePrompt({
+      origin: formData.origin || 'Unknown',
+      destination: formData.destination || 'Unknown',
+      mode: formData.mode || 'unknown',
+      cargoType: formData.cargoType
+    }),
+    parseShape: () => null
+  });
+
+  React.useEffect(() => {
+    if (aiData && useAI) {
+      const estUnit = aiData.maxHours > 72 ? 'days' : 'hours';
+      const convert = (h: number) => estUnit === 'days' ? Math.round(h / 24) : h;
+      setResult({
+        origin: formData.origin,
+        destination: formData.destination,
+        mode: formData.mode || 'air',
+        distance: aiData.distanceKm,
+        estimatedTime: {
+          min: convert(aiData.minHours),
+          max: convert(aiData.maxHours),
+          unit: estUnit as 'hours' | 'days'
+        },
+        factors: aiData.factors || [],
+        reliability: (aiData.reliability?.toLowerCase?.() || 'medium') as 'high' | 'medium' | 'low'
+      });
+    }
+  }, [aiData, useAI, formData]);
 
   // Mock data for demonstration - replace with real API calls
   const mockTransitData = {
@@ -57,24 +99,20 @@ const TransitTimeCalculator = () => {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (useAI) {
+      await runAI();
+      if (!aiError) toast.success('AI transit time requested');
+      return;
+    }
 
     setLoading(true);
-
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      // Determine if route is domestic or international (simplified logic)
       const isDomestic = formData.origin.split(',').pop()?.trim() === formData.destination.split(',').pop()?.trim();
-
       const modeData = mockTransitData[formData.mode];
       const routeType = isDomestic ? 'domestic' : 'international';
       const timeData = modeData[routeType];
-
-      // Calculate approximate distance (simplified)
       const distance = Math.floor(Math.random() * 8000) + 500;
-
-      const result: TransitTimeResult = {
+      setResult({
         origin: formData.origin,
         destination: formData.destination,
         mode: formData.mode,
@@ -82,14 +120,10 @@ const TransitTimeCalculator = () => {
         estimatedTime: timeData,
         factors: modeData.factors,
         reliability: timeData.reliability
-      };
-
-      setResult(result);
-      toast.success('Transit time calculated successfully!');
-
-    } catch (error) {
-      toast.error('Failed to calculate transit time. Please try again.');
-      console.error('Transit time calculation error:', error);
+      });
+      toast.success('Transit time calculated');
+    } catch (e) {
+      toast.error('Calculation failed');
     } finally {
       setLoading(false);
     }
@@ -138,15 +172,22 @@ const TransitTimeCalculator = () => {
         {/* Input Form */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <MapPin className="h-5 w-5" />
-              Route Information
+              Route Information {useAI && <AIBadge />}
             </CardTitle>
             <CardDescription>
               Enter your shipment details to calculate transit time
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" className="h-4 w-4" checked={useAI} onChange={() => setUseAI(v => !v)} />
+                <span className="font-medium">AI Mode</span>
+              </label>
+              {aiError && <span className="text-xs text-red-600">{aiError}</span>}
+            </div>
             <div className="space-y-2">
               <Label htmlFor="origin">Origin *</Label>
               <Input
@@ -211,20 +252,16 @@ const TransitTimeCalculator = () => {
               </Select>
             </div>
 
-            <Button
-              onClick={handleCalculate}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
+            <Button onClick={handleCalculate} disabled={loading || aiLoading} className="w-full">
+              {(loading || aiLoading) ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Calculating...
+                  {useAI ? 'AI Estimating...' : 'Calculating...'}
                 </>
               ) : (
                 <>
-                  <Calculator className="h-4 w-4 mr-2" />
-                  Calculate Transit Time
+                  {useAI ? <Brain className="h-4 w-4 mr-2" /> : <Calculator className="h-4 w-4 mr-2" />}
+                  {useAI ? 'Generate AI Transit Time' : 'Calculate Transit Time'}
                 </>
               )}
             </Button>
@@ -234,7 +271,7 @@ const TransitTimeCalculator = () => {
         {/* Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Transit Time Results</CardTitle>
+            <CardTitle className="flex items-center gap-2">Transit Time Results {useAI && aiData && <AIBadge />}</CardTitle>
             <CardDescription>
               Estimated delivery time and factors affecting transit
             </CardDescription>
@@ -251,6 +288,11 @@ const TransitTimeCalculator = () => {
                     <div className="text-sm text-blue-700">
                       via {result.mode.charAt(0).toUpperCase() + result.mode.slice(1)} Freight
                     </div>
+                    {useAI && aiData?.notes && (
+                      <div className="mt-2 text-xs text-blue-600 space-y-1">
+                        {aiData.notes.slice(0,3).map((n,i)=>(<div key={i}>• {n}</div>))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -293,7 +335,7 @@ const TransitTimeCalculator = () => {
 
                 <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> These are estimated times based on typical conditions.
+                    <strong>Note:</strong> {useAI ? 'AI generated transit window with heuristic reliability mapping.' : 'These are estimated times based on typical conditions.'}
                     Actual transit times may vary due to weather, customs, or other factors.
                   </p>
                 </div>

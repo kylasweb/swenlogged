@@ -60,6 +60,89 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## AI-Powered Logistics Suite
+
+Many tools in this application are AI‑augmented using Puter.js (client-side LLM access) with a consistent toggle + caching pattern. Each upgraded tool preserves a deterministic fallback path when AI Mode is disabled.
+
+### Current AI-Enhanced Tools
+
+Route Optimizer, Freight Quote, Document Scanner (OCR post‑processing), Container Load Optimizer, Marine Traffic Analysis, Demand Forecasting, Logistics Risk Assessment, Customs Duty Estimator, Transit Time Estimator, Price Prediction Engine, Packaging Advisor, Insurance Coverage Calculator, Port Performance Dashboard, Supply Chain Risk Assessment (supplier-level), and Compliance Checker.
+
+### Key Building Blocks
+
+- `puterService.ts`: Lazy loads Puter.js, readiness checking, safe fallback responses.
+- `toolPrompts.ts`: Central library of strongly structured JSON-only prompt builders.
+- `useAICachedAction.ts`: Executes a prompt once per unique cache key (LocalStorage) and returns parsed JSON text.
+- `extractJson` (in AI parsing utilities): Robust JSON extraction from imperfect model output.
+- `AIBadge` + Switch: Visual indicator & user control for AI mode per tool.
+
+### Adding a New AI Tool (Quick Recipe)
+
+1. Define domain shape your component needs (TypeScript interface).
+2. Add a prompt builder in `toolPrompts.ts` insisting on JSON schema (no markdown, no prose).
+3. In the component:
+   - Add `aiEnabled` state + toggle (Switch) + `AIBadge`.
+   - Use `useAICachedAction(() => promptBuilder(params), [deps], { cacheKey })`.
+   - On run: if `aiEnabled`, await AI result, map to internal types with validation & fallbacks.
+   - If AI fails or returns partial, gracefully fall back to legacy/manual logic.
+4. Guard all array iterations with `(array || [])` to prevent runtime `undefined.map` errors.
+5. Keep cache key deterministic and specific (include meaningful inputs joined by colons).
+
+### Error Handling & Safety
+
+- All prompts enforce JSON-only output; parser trims any stray text.
+- Type narrowing ensures unknown AI fields never crash UI.
+- Fallback manual path ensures feature parity when AI unreachable.
+
+### Troubleshooting
+
+| Symptom                            | Likely Cause                | Fix                                            |
+| ---------------------------------- | --------------------------- | ---------------------------------------------- |
+| "Puter.js AI service is not ready" | Script not yet loaded       | Wait a moment or check network blockers        |
+| Empty AI section                   | Model returned invalid JSON | Check console; ensure prompt schema maintained |
+| Stale results                      | Cached response reused      | Toggle inputs or clear LocalStorage key        |
+| Type errors after prompt change    | Interfaces out of sync      | Update TS interfaces + mapping logic           |
+
+### Clearing AI Cache
+
+Open DevTools > Application > Local Storage and remove keys prefixed with the tool namespace (e.g. `supplier-risk:` or `compliance:`).
+
+### Extending Prompts
+
+Prompts should: (1) declare exact JSON schema, (2) forbid markdown fences, (3) give minimal contextual lane/supplier/product info, (4) keep arrays concise.
+
+## Local Development (Recap)
+
+Run the dev server:
+
+```sh
+npm run dev
+```
+
+Type-check & build:
+
+```sh
+npm run lint
+npm run build
+```
+
+Run tests (if present):
+
+```sh
+npm test
+```
+
+## Contributing AI Enhancements
+
+1. Open a feature branch.
+2. Add / adjust prompt & component mapping.
+3. Verify `npm run lint && npx tsc --noEmit` passes.
+4. Open PR describing new schema contract.
+
+## License & Notes
+
+This repository originated from a Lovable-generated scaffold; AI layers and logistics domain tooling were added afterward. Ensure no sensitive data is fed into prompts—current design is browser-side.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/d303b461-8e17-4bc1-b9d3-5189bafd8335) and click on Share -> Publish.

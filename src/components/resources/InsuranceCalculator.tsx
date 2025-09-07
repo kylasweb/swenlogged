@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Shield, Calculator, AlertTriangle, CheckCircle, Info, DollarSign } from "lucide-react";
 import { toast } from "sonner";
+import { Switch } from '@/components/ui/switch';
+import AIBadge from '@/components/ui/AIBadge';
+import { useAICachedAction } from '@/hooks/useAICachedAction';
+import { insuranceCoveragePrompt } from '@/utils/toolPrompts';
 
 interface InsuranceQuote {
   coverageType: string;
@@ -41,6 +45,28 @@ const InsuranceCalculator = () => {
 
   const [quotes, setQuotes] = useState<InsuranceQuote[]>([]);
   const [loading, setLoading] = useState(false);
+  const [aiMode, setAiMode] = useState(true);
+
+  interface AIInsuranceResp {
+    basePremiumUSD: number;
+    recommendedCoveragePercent: number;
+    deductibleUSD: number;
+    coverageOptions: { name: string; addedPremiumUSD: number; benefit: string }[];
+    riskFactors: string[];
+    notes: string[];
+  }
+
+  const cacheKey = `insurance:${formData.shipmentValue}:${formData.shippingMethod}:${formData.destination}:${formData.productType}`;
+  const { data: aiData, run: runAI, loading: aiLoading, error: aiError } = useAICachedAction<AIInsuranceResp>({
+    cacheKey,
+    buildPrompt: () => insuranceCoveragePrompt({
+      cargoValueUSD: parseFloat(formData.shipmentValue) || 0,
+      commodity: formData.productType || 'general cargo',
+      route: `${formData.shippingMethod || 'mode'} -> ${formData.destination || 'dest'}`,
+      riskLevel: formData.coverageType
+    }),
+    parseShape: () => null
+  });
 
   const shippingMethods = [
     { value: 'air', label: 'Air Freight', risk: 'low', icon: '✈️' },
@@ -107,23 +133,71 @@ const InsuranceCalculator = () => {
       return;
     }
 
+    if (aiMode) {
+      runAI();
+      toast.message('Requesting AI insurance recommendations...');
+      return;
+    }
     setLoading(true);
-
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1200));
-
-      const quotes = generateQuotes(value, formData);
-      setQuotes(quotes);
-      toast.success('Insurance quotes calculated!');
-
-    } catch (error) {
-      toast.error('Failed to calculate insurance quotes. Please try again.');
-      console.error('Insurance calculation error:', error);
+      await new Promise(r=>setTimeout(r,800));
+      const q = generateQuotes(value, formData);
+      setQuotes(q);
+      toast.success('Local insurance quotes calculated');
+    } catch (e) {
+      toast.error('Failed to calculate insurance quotes');
     } finally {
       setLoading(false);
     }
   };
+
+  // Map AI response into quotes when available
+  useEffect(() => {
+    if (aiMode && aiData && formData.shipmentValue) {
+      const value = parseFloat(formData.shipmentValue) || 0;
+      const basePremium = aiData.basePremiumUSD || Math.max(value * 0.005, 50);
+      const coveragePercent = (aiData.recommendedCoveragePercent || 100) / 100;
+      const deductible = aiData.deductibleUSD || Math.min(value * 0.01, 500);
+      const options = aiData.coverageOptions || [];
+      // Construct at least three tier quotes derived from AI base
+      const tiers: InsuranceQuote[] = [
+        {
+          coverageType: 'AI Basic',
+          basePremium: Math.round(basePremium),
+          additionalCoverage: 0,
+          totalPremium: Math.round(basePremium),
+          coverageAmount: Math.round(value * 0.8),
+          deductible: Math.round(deductible * 1.2),
+          coverageDetails: { theft: true, damage: true, loss: true, delay: false, customsIssues: false },
+          exclusions: ['Delay compensation', 'Customs issues extended'],
+          recommended: false
+        },
+        {
+          coverageType: 'AI Recommended',
+          basePremium: Math.round(basePremium * 1.15),
+          additionalCoverage: Math.round(options.reduce((s,o)=>s+o.addedPremiumUSD,0)),
+          totalPremium: Math.round(basePremium * 1.15 + options.reduce((s,o)=>s+o.addedPremiumUSD,0)),
+          coverageAmount: Math.round(value * coveragePercent),
+          deductible: Math.round(deductible),
+          coverageDetails: { theft: true, damage: true, loss: true, delay: true, customsIssues: true },
+          exclusions: [],
+          recommended: true
+        },
+        {
+          coverageType: 'AI Premium',
+          basePremium: Math.round(basePremium * 1.35),
+          additionalCoverage: Math.round(options.reduce((s,o)=>s+o.addedPremiumUSD,0) * 1.2),
+          totalPremium: Math.round(basePremium * 1.35 + options.reduce((s,o)=>s+o.addedPremiumUSD,0) * 1.2),
+          coverageAmount: Math.round(value),
+          deductible: Math.round(deductible * 0.8),
+          coverageDetails: { theft: true, damage: true, loss: true, delay: true, customsIssues: true },
+          exclusions: ['Acts of god (extreme)', 'Improper packaging'],
+          recommended: false
+        }
+      ];
+      setQuotes(tiers);
+    }
+  }, [aiData, aiMode, formData.shipmentValue]);
 
   const generateQuotes = (value: number, data: typeof formData): InsuranceQuote[] => {
     const shippingRisk = shippingMethods.find(m => m.value === data.shippingMethod)?.risk || 'medium';
@@ -235,6 +309,13 @@ const InsuranceCalculator = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="shipmentValue">Shipment Value (USD) *</Label>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2"><AIBadge /><span className="text-xs text-gray-500">Toggle AI for dynamic coverage</span></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium">AI Mode</span>
+                  <Switch checked={aiMode} onCheckedChange={(v)=>setAiMode(!!v)} />
+                </div>
+              </div>
               <Input
                 id="shipmentValue"
                 type="number"
@@ -361,30 +442,39 @@ const InsuranceCalculator = () => {
               ))}
             </div>
 
-            <Button
-              onClick={calculateInsurance}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Calculating...
-                </>
+            <Button onClick={calculateInsurance} disabled={loading || aiLoading} className="w-full">
+              {aiMode ? (
+                aiLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    AI Evaluating...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />Run AI Insurance Analysis
+                  </>
+                )
               ) : (
-                <>
-                  <Shield className="h-4 w-4 mr-2" />
-                  Calculate Insurance
-                </>
+                loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Calculating...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />Calculate Insurance
+                  </>
+                )
               )}
             </Button>
+            {aiError && <div className="text-xs text-red-600 text-center mt-2">AI Error: {aiError}</div>}
           </CardContent>
         </Card>
 
         {/* Results */}
         <Card>
           <CardHeader>
-            <CardTitle>Insurance Quotes</CardTitle>
+            <CardTitle>Insurance Quotes {aiMode && quotes.length>0 && <span className="ml-2"><AIBadge /></span>}</CardTitle>
             <CardDescription>
               Compare coverage options and premiums
             </CardDescription>
