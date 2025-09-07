@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 interface Resource {
   title: string;
   description: string;
-  link?: string;
+  url?: string;
 }
 
 interface ResourceCategoryProps {
@@ -17,25 +17,6 @@ interface ResourceCategoryProps {
 }
 
 const ResourceCategory = ({ title, icon: Icon, color, resources }: ResourceCategoryProps) => {
-  const getResourceLink = (resourceTitle: string) => {
-    switch (resourceTitle) {
-      case 'Freight Rate Calculator':
-        return '/tools/freight-calculator';
-      case 'Container Load Optimizer':
-        return '/tools/container-optimizer';
-      case 'Smart Route Optimizer':
-        return '/tools/route-optimizer';
-      case 'Document Scanner & Processor':
-        return '/tools/document-scanner';
-      case 'Marine Traffic Monitor':
-        return '/tools/marine-traffic';
-      case 'Transit Time Calculator':
-        return '/resources/transit-time-calculator';
-      default:
-        return '#';
-    }
-  };
-
   return (
     <div className="mb-16">
       <div className="flex items-center mb-8">
@@ -50,9 +31,9 @@ const ResourceCategory = ({ title, icon: Icon, color, resources }: ResourceCateg
           <div key={resource.title} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
             <h4 className="text-lg font-semibold text-gray-900 mb-2">{resource.title}</h4>
             <p className="text-gray-600 mb-4">{resource.description}</p>
-            {getResourceLink(resource.title) !== '#' ? (
+            {resource.url ? (
               <Link 
-                to={getResourceLink(resource.title)}
+                to={resource.url}
                 className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
               >
                 Access Tool →
