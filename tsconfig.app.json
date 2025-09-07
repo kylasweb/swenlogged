@@ -20,6 +20,11 @@
     "noUnusedParameters": false,
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": false,
+    "noImplicitReturns": false,
+    "noImplicitThis": false,
+
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
 
     "baseUrl": ".",
     "paths": {

@@ -55,8 +55,10 @@ const AIAssistant = () => {
           trainingContext ? `Use the following training data to provide accurate answers when relevant:\n\n${trainingContext}\n\n` : ''
         }Please provide helpful advice about: ${aiQuestion}`;
 
-        const response = await window.puter.ai.chat(contextualPrompt, false, {
-          model: 'gpt-4.1-nano' // Using the default model mentioned in docs
+        const response = await window.puter.ai.chat(contextualPrompt, {
+          testMode: false,
+          model: 'gpt-4o-mini',
+          stream: false
         });
         
         console.log('AI Response received:', response);

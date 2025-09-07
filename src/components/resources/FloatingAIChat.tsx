@@ -69,7 +69,8 @@ const FloatingAIChat = () => {
       const response = await aiService.query(userMessage.text, {
         context: 'customer_support',
         systemPrompt: 'You are SwenAI, a logistics and supply chain expert for SWENLOG Supply Chain Solutions.',
-        model: 'gpt-4.1-nano'
+        model: 'gpt-4o-mini',
+        testMode: true // Use test mode as requested
       });
 
       const aiMessage: Message = {

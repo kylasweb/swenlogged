@@ -3,10 +3,86 @@ declare global {
   interface Window {
     puter: {
       ai: {
-        chat: (prompt: string, testMode?: boolean, options?: any) => Promise<any>;
+        chat: (message: string, options?: {
+          testMode?: boolean;
+          model?: string;
+          stream?: boolean;
+        }) => Promise<{
+          message?: {
+            content: string | Array<{ type: string; text: string }>;
+          };
+          content?: string;
+          text?: string;
+          choices?: Array<{
+            message: {
+              content: string;
+            };
+          }>;
+        }>;
       };
     };
   }
 }
 
-export {};
+// Type declarations for missing packages
+declare module "cmdk" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const Command: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandInput: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandList: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandEmpty: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandGroup: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandItem: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const CommandSeparator: any;
+}
+
+declare module "vaul" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const Drawer: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerPortal: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerOverlay: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerTrigger: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerClose: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerContent: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerHeader: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerFooter: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerTitle: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const DrawerDescription: any;
+}
+
+declare module "input-otp" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const InputOTP: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const InputOTPGroup: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const InputOTPSlot: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const InputOTPSeparator: any;
+}
+
+declare module "react-resizable-panels" {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const Panel: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const PanelGroup: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  export const PanelResizeHandle: any;
+}
+
+export { };

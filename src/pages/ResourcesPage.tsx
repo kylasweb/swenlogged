@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import ResourcesAIAssistantSection from '../components/resources/ResourcesAIAssistantSection';
-import ResourcesCategoryList from '../components/resources/ResourcesCategoryList';
-import ResourcesFeaturedSection from '../components/resources/ResourcesFeaturedSection';
-import { resourceCategories } from '../data/resourceCategories';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import ResourcesAIAssistantSection from '@/components/resources/ResourcesAIAssistantSection';
+import ResourcesCategoryList from '@/components/resources/ResourcesCategoryList';
+import ResourcesFeaturedSection from '@/components/resources/ResourcesFeaturedSection';
+import { resourceCategories } from '@/data/resourceCategories';
 
 const ResourcesPage = () => {
   useEffect(() => {

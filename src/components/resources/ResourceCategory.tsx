@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -28,6 +29,8 @@ const ResourceCategory = ({ title, icon: Icon, color, resources }: ResourceCateg
         return '/tools/document-scanner';
       case 'Marine Traffic Monitor':
         return '/tools/marine-traffic';
+      case 'Transit Time Calculator':
+        return '/resources/transit-time-calculator';
       default:
         return '#';
     }

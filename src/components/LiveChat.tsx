@@ -110,26 +110,29 @@ const LiveChat = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages.length]);
 
-  const extractTextFromResponse = (response: any): string => {
+  const extractTextFromResponse = (response: unknown): string => {
     console.log('Full AI response:', response);
-    
+
     if (!response) {
       return 'I apologize, but I did not receive a response. Please try again.';
     }
 
     try {
       // Handle Puter.js response format
-      if (response.message?.content) {
-        if (Array.isArray(response.message.content)) {
-          const textContent = response.message.content
-            .filter((item: any) => item.type === 'text')
-            .map((item: any) => item.text)
-            .join(' ');
-          return textContent || 'I apologize, but I could not process the response properly.';
+      if (response && typeof response === 'object' && 'message' in response) {
+        const responseObj = response as { message?: { content?: unknown } };
+        if (responseObj.message?.content) {
+          if (Array.isArray(responseObj.message.content)) {
+            const textContent = responseObj.message.content
+              .filter((item: unknown) => typeof item === 'object' && item !== null && 'type' in item && (item as { type: string }).type === 'text')
+              .map((item: unknown) => typeof item === 'object' && item !== null && 'text' in item ? (item as { text: string }).text : '')
+              .join(' ');
+            return textContent || 'I apologize, but I could not process the response properly.';
+          }
+          return String(responseObj.message.content);
         }
-        return String(response.message.content);
       }
 
       // Fallback to string conversion
@@ -173,7 +176,11 @@ User question: ${inputMessage}
 
 Please provide a helpful response about SWENLOG's logistics services.`;
 
-      const response = await window.puter.ai.chat(enhancedContext, true);
+      const response = await window.puter.ai.chat(enhancedContext, {
+        testMode: true,
+        model: 'gpt-4o-mini',
+        stream: false
+      });
       const responseText = extractTextFromResponse(response);
       
       // Reduce timeout delay for better performance

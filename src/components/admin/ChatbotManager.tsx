@@ -117,11 +117,15 @@ const ChatbotManager = () => {
         Based on this training data, please answer the following question:
         ${testQuestion}`;
 
-        const response = await window.puter.ai.chat(prompt, true); // testMode = true
+        const response = await window.puter.ai.chat(prompt, {
+          testMode: true,
+          model: 'gpt-4o-mini',
+          stream: false
+        });
         
         const result: TestResult = {
           question: testQuestion,
-          response: response?.message?.content || response?.toString() || 'No response received',
+          response: extractResponseText(response) || 'No response received',
           timestamp: new Date()
         };
 
@@ -140,6 +144,36 @@ const ChatbotManager = () => {
       setTestResults(prev => [errorResult, ...prev]);
     } finally {
       setIsTestingAI(false);
+    }
+  };
+
+  const extractResponseText = (response: unknown): string => {
+    if (!response) return '';
+
+    try {
+      // Handle Puter.js response format
+      if (response && typeof response === 'object' && 'message' in response) {
+        const responseObj = response as { message?: { content?: unknown } };
+        if (responseObj.message?.content) {
+          if (Array.isArray(responseObj.message.content)) {
+            return responseObj.message.content
+              .filter((item: unknown) => typeof item === 'object' && item !== null && 'type' in item && (item as { type: string }).type === 'text')
+              .map((item: unknown) => typeof item === 'object' && item !== null && 'text' in item ? (item as { text: string }).text : '')
+              .join(' ');
+          }
+          return String(responseObj.message.content);
+        }
+      }
+
+      // Fallback to string conversion
+      if (typeof response === 'string') {
+        return response;
+      }
+
+      return response?.toString() || '';
+    } catch (error) {
+      console.error('Error extracting response text:', error);
+      return '';
     }
   };
 
