@@ -282,7 +282,7 @@ const TransitTimeCalculator = () => {
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Factors Affecting Transit:</h4>
                   <ul className="space-y-1">
-                    {result.factors.map((factor, index) => (
+                    {(result.factors || []).map((factor, index) => (
                       <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
                         <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
                         {factor}

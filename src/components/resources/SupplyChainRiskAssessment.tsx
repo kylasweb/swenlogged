@@ -487,7 +487,7 @@ const SupplyChainRiskAssessment = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {assessment.factors.map((factor, index) => (
+                    {(assessment?.factors || []).map((factor, index) => (
                       <div key={index} className="p-4 border rounded-lg">
                         <div className="flex items-start justify-between mb-2">
                           <div>
