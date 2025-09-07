@@ -126,8 +126,8 @@ class PuterService {
         };
         if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
 
-        // DEFAULT: testMode ON (no auth prompt). User can explicitly disable with options.testMode === false.
-        const effectiveTestMode = options?.testMode !== false;
+        // DEFAULT CHANGED: testMode OFF so Puter auth popup can appear. Enable explicitly with options.testMode = true.
+        const effectiveTestMode = !!options?.testMode;
 
         // Only attempt auth probing if explicitly NOT in test mode.
         if (!effectiveTestMode) {
@@ -265,8 +265,8 @@ class PuterService {
             return '';
         };
 
-        // Default to test mode unless explicitly disabled.
-        const initialTestMode = options?.testMode !== false;
+        // Default: NOT in test mode (auth popup allowed) unless caller sets testMode true.
+        const initialTestMode = !!options?.testMode;
         let raw: unknown;
         try { raw = await invoke(initialTestMode); }
         catch (err) {
