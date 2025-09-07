@@ -150,16 +150,20 @@ class UnifiedAIService {
       // pass through options as needed; puterService maps camelCase keys to API keys
       const response = await puterService.makeAIRequest(contextualPrompt, {
         temperature: 0.7,
-        maxTokens: 1000
+        maxTokens: 1000,
+        model: options.model
       });
 
-      console.log('AI Response:', response);
+      console.log('AI Response (raw/structured):', response);
 
-      // Extract text from response - handle different response formats
       let responseText = this.getFallbackResponse(prompt);
 
-      if (response) {
-        // Use centralized, defensive parser to extract usable text
+      const isStructured = (val: unknown): val is { text: string; raw: unknown } => {
+        return !!val && typeof val === 'object' && 'text' in val && 'raw' in val;
+      };
+      if (isStructured(response)) {
+        responseText = response.text || responseText;
+      } else if (response) {
         responseText = extractTextFromPuterResponse(response) || responseText;
       }
 

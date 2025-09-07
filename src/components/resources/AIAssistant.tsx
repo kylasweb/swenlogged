@@ -46,11 +46,15 @@ const AIAssistant = () => {
 
       const response = await puterService.makeAIRequest(contextualPrompt, {
         temperature: 0.7,
-        maxTokens: 1000
+        maxTokens: 800
       });
 
       console.log('AI Response received:', response);
-      setAiResponse(response);
+      if (response && typeof response === 'object' && 'text' in response && 'raw' in response) {
+        setAiResponse((response as { text: string }).text);
+      } else {
+        setAiResponse(String(response));
+      }
     } catch (error) {
       console.error('Puter AI Error:', error);
       setAiResponse('Sorry, there was an error connecting to the AI service. Please try again later.');

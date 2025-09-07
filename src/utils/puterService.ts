@@ -7,11 +7,30 @@ interface PuterConfig {
     error: string | null;
 }
 
+interface AIRequestOptions {
+    temperature?: number;
+    maxTokens?: number;
+    rawResponse?: boolean;
+    stream?: boolean; // reserved for future streaming support
+    model?: string;
+    timeoutMs?: number;
+}
+
+interface AIParsedResponse<T = unknown> {
+    text: string;
+    raw: T;
+    model?: string;
+    cached?: boolean;
+}
+
 class PuterService {
     private static instance: PuterService;
     private isInitialized = false;
     private isReady = false;
+    private initPromise: Promise<boolean> | null = null;
     private listeners: ((ready: boolean) => void)[] = [];
+    private lastReadyCheck = 0;
+    private readonly readinessTTL = 10_000; // 10s before re-validate underlying window object
 
     private constructor() { }
 
@@ -23,102 +42,111 @@ class PuterService {
     }
 
     async initialize(): Promise<boolean> {
-        if (this.isInitialized) {
-            return this.isReady;
-        }
+        if (this.initPromise) return this.initPromise;
+        if (this.isInitialized) return this.isReady;
 
-        this.isInitialized = true;
-
-        try {
-            // Check if script is already loaded
-            const existingScript = document.querySelector('script[src="https://js.puter.com/v2/"]');
-
-            if (!existingScript) {
-                // Load Puter.js script
-                const script = document.createElement('script');
-                script.src = 'https://js.puter.com/v2/';
-                script.async = true;
-
-                const loadPromise = new Promise<void>((resolve, reject) => {
-                    script.onload = () => {
-                        console.log('Puter.js script loaded successfully');
-                        resolve();
-                    };
-                    script.onerror = () => {
-                        console.error('Failed to load Puter.js script');
-                        reject(new Error('Failed to load Puter.js script'));
-                    };
-                    document.head.appendChild(script);
-                });
-
-                await loadPromise;
-            }
-
-            // Wait for Puter.js to be fully available (poll with a fixed max attempts)
-            const maxAttempts = 50;
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                if (window.puter && window.puter.ai) break;
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-
-            if (window.puter && window.puter.ai) {
-                this.isReady = true;
-                console.log('Puter.js AI service is ready');
-                this.notifyListeners(true);
-                return true;
-            } else {
-                console.warn('Puter.js AI service not available after initialization');
+        this.initPromise = (async () => {
+            this.isInitialized = true;
+            try {
+                if (typeof window === 'undefined' || typeof document === 'undefined') {
+                    console.warn('PuterService: window/document unavailable (SSR?)');
+                    return false;
+                }
+                const existingScript = document.querySelector('script[src="https://js.puter.com/v2/"]');
+                if (!existingScript) {
+                    const script = document.createElement('script');
+                    script.src = 'https://js.puter.com/v2/';
+                    script.async = true;
+                    await new Promise<void>((resolve, reject) => {
+                        script.onload = () => resolve();
+                        script.onerror = () => reject(new Error('Failed to load Puter.js script'));
+                        document.head.appendChild(script);
+                    });
+                }
+                const maxAttempts = 50;
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    if (window.puter && window.puter.ai) break;
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                if (window.puter && window.puter.ai) {
+                    this.isReady = true;
+                    this.lastReadyCheck = Date.now();
+                    this.notifyListeners(true);
+                    return true;
+                }
+                this.notifyListeners(false);
+                return false;
+            } catch (err) {
+                console.error('Error initializing Puter.js:', err);
                 this.notifyListeners(false);
                 return false;
             }
-        } catch (error) {
-            console.error('Error initializing Puter.js:', error);
-            this.notifyListeners(false);
-            return false;
-        }
+        })();
+
+        return this.initPromise;
     }
 
     isServiceReady(): boolean {
-        return this.isReady && !!(window.puter && window.puter.ai);
+        if (!this.isReady) return false;
+        // Re-validate underlying global in case of HMR / page transitions invalidating reference
+        if (Date.now() - this.lastReadyCheck > this.readinessTTL) {
+            this.isReady = !!(window.puter && window.puter.ai);
+            this.lastReadyCheck = Date.now();
+        }
+        return this.isReady;
     }
 
-    async makeAIRequest(prompt: string, options?: { temperature?: number; maxTokens?: number; rawResponse?: boolean; stream?: boolean }): Promise<unknown> {
-        if (!this.isServiceReady()) {
-            throw new Error('Puter.js AI service is not ready');
-        }
+    async ensureReady(timeoutMs = 5_000): Promise<boolean> {
+        if (this.isServiceReady()) return true;
+        await this.initialize();
+        if (this.isServiceReady()) return true;
+        return new Promise<boolean>((resolve) => {
+            let settled = false;
+            const timeout = setTimeout(() => { if (!settled) { settled = true; resolve(false); } }, timeoutMs);
+            const unsubscribe = this.onReady((ready) => {
+                if (!settled) {
+                    settled = true;
+                    clearTimeout(timeout);
+                    unsubscribe();
+                    resolve(ready);
+                }
+            });
+        });
+    }
+
+    async makeAIRequest(prompt: string, options?: AIRequestOptions): Promise<AIParsedResponse | string | unknown> {
+        const ready = await this.ensureReady(options?.timeoutMs);
+        if (!ready) throw new Error('Puter.js AI service is not ready');
 
         try {
-            // Map camelCase options to SDK expected keys (e.g., maxTokens -> max_tokens)
             const apiOptions: Record<string, unknown> = {
-                model: 'gpt-4o-mini',
+                model: options?.model || 'gpt-4o-mini',
                 stream: options?.stream ?? false,
                 temperature: options?.temperature ?? 0.7,
             };
-
             if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
 
-            const responseRaw = await window.puter.ai.chat(prompt as unknown as string, apiOptions as unknown as Record<string, unknown>);
+            const responseRaw = await window.puter.ai.chat(prompt as unknown as string, apiOptions as Record<string, unknown>);
 
-            // If caller wants raw response (for tool_calls / function-calling workflows), return it
             if (options?.rawResponse) return responseRaw;
 
-            // Otherwise, return extracted text for convenience
+            let text: string;
             try {
-                return extractTextFromPuterResponse(responseRaw as unknown);
-            } catch (err) {
-                return String(responseRaw);
+                text = String(extractTextFromPuterResponse(responseRaw as unknown));
+            } catch {
+                text = String(responseRaw);
             }
+            const structured: AIParsedResponse = { text, raw: responseRaw, model: apiOptions.model as string };
+            return structured;
         } catch (error) {
             console.error('Puter.js AI request failed:', error);
-
-            // Check if it's an authentication error
             if (error instanceof Error) {
                 if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('authentication')) {
                     console.warn('Puter.js authentication failed. Using fallback responses.');
-                    return this.getFallbackResponse(prompt);
+                    const fallback = this.getFallbackResponse(prompt);
+                    return { text: fallback, raw: null, model: options?.model, cached: true } satisfies AIParsedResponse;
                 }
             }
-
             throw error;
         }
     }
@@ -204,10 +232,8 @@ export const usePuter = () => {
 
     return {
         ...config,
-        makeAIRequest: (prompt: string, options?: { temperature?: number; maxTokens?: number }) => {
-            const puterService = PuterService.getInstance();
-            return puterService.makeAIRequest(prompt, options);
-        }
+        ensureReady: (timeoutMs?: number) => PuterService.getInstance().ensureReady(timeoutMs),
+        makeAIRequest: (prompt: string, options?: AIRequestOptions) => PuterService.getInstance().makeAIRequest(prompt, options)
     };
 };
 

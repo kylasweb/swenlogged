@@ -2,15 +2,37 @@
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { defaultAboutData } from '@/data/defaults';
 import { ICONS } from './icons';
+import { asArray } from '@/lib/utils';
+
+interface AboutValue { id: string; icon: string; title: string; description: string; }
+interface AboutDataShape {
+  title: string;
+  paragraph1: string;
+  paragraph2: string;
+  stat1_value: string;
+  stat1_label: string;
+  stat2_value: string;
+  stat2_label: string;
+  values_title: string;
+  values: AboutValue[];
+}
 
 const About = () => {
   const [aboutData] = useLocalStorage('aboutData', defaultAboutData);
 
   // Ensure aboutData has the required structure
-  const safeAboutData = {
-    ...defaultAboutData,
-    ...aboutData,
-    values: aboutData?.values || defaultAboutData.values || []
+  const raw: unknown = aboutData;
+  const obj: Partial<AboutDataShape> = raw && typeof raw === 'object' ? (raw as Partial<AboutDataShape>) : {};
+  const safeAboutData: AboutDataShape = {
+    title: obj.title ?? defaultAboutData.title,
+    paragraph1: obj.paragraph1 ?? defaultAboutData.paragraph1,
+    paragraph2: obj.paragraph2 ?? defaultAboutData.paragraph2,
+    stat1_value: obj.stat1_value ?? defaultAboutData.stat1_value,
+    stat1_label: obj.stat1_label ?? defaultAboutData.stat1_label,
+    stat2_value: obj.stat2_value ?? defaultAboutData.stat2_value,
+    stat2_label: obj.stat2_label ?? defaultAboutData.stat2_label,
+    values_title: obj.values_title ?? defaultAboutData.values_title,
+    values: asArray<AboutValue>(obj.values, defaultAboutData.values)
   };
 
   return (

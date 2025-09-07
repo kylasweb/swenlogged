@@ -5,9 +5,32 @@ import { defaultHeaderData } from '@/data/defaults';
 import { Menu, X, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthProvider';
 import { Link, useNavigate } from 'react-router-dom';
+import { asArray } from '@/lib/utils';
+
+interface NavDropdownItem { name: string; url: string; }
+interface NavItem { name: string; url: string; dropdown?: NavDropdownItem[]; }
+interface HeaderDataShape {
+  logoText: string;
+  logoSubtext: string;
+  ctaButtonText: string;
+  ctaButtonLink: string;
+  navigationItems: NavItem[];
+}
 
 const Header = () => {
-  const [headerData] = useLocalStorage('headerData', defaultHeaderData);
+  const [headerDataRaw] = useLocalStorage('headerData', defaultHeaderData);
+  const raw: unknown = headerDataRaw;
+  const obj: Partial<HeaderDataShape> = raw && typeof raw === 'object' ? (raw as Partial<HeaderDataShape>) : {};
+  const headerData: HeaderDataShape = {
+    logoText: obj.logoText ?? defaultHeaderData.logoText,
+    logoSubtext: obj.logoSubtext ?? defaultHeaderData.logoSubtext,
+    ctaButtonText: obj.ctaButtonText ?? defaultHeaderData.ctaButtonText,
+    ctaButtonLink: obj.ctaButtonLink ?? defaultHeaderData.ctaButtonLink,
+    navigationItems: asArray<NavItem>(obj.navigationItems, defaultHeaderData.navigationItems).map(item => ({
+      ...item,
+      dropdown: asArray<NavDropdownItem>(item.dropdown)
+    }))
+  };
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const { user, signOut, userRole } = useAuth();

@@ -53,7 +53,7 @@ const LiveChat = () => {
 
     const initializeChat = async () => {
       try {
-        const isReady = await puterService.initialize();
+  const isReady = await puterService.ensureReady?.(4000) || await puterService.initialize();
         setIsPuterReady(isReady);
 
         if (isReady && chatbotSettings.welcomeMessage && messages.length === 0) {
@@ -117,9 +117,14 @@ Please provide a helpful response about SWENLOG's logistics services.`;
 
       const response = await puterService.makeAIRequest(enhancedContext, {
         temperature: 0.7,
-        maxTokens: 1000
+        maxTokens: 800
       });
-      const responseText = extractTextFromResponse(response);
+      let responseText = '';
+      if (response && typeof response === 'object' && 'text' in response && 'raw' in response) {
+        responseText = (response as { text: string }).text;
+      } else {
+        responseText = extractTextFromResponse(response);
+      }
       
       // Reduce timeout delay for better performance
       setTimeout(() => {

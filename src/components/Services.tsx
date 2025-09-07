@@ -3,9 +3,22 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { defaultServicesData } from '@/data/defaults';
 import { ICONS } from './icons';
 import { Link } from 'react-router-dom';
+import { asArray } from '@/lib/utils';
+
+interface ServiceItem {
+  id: string; slug: string; icon: string; title: string; description: string; features: string;
+}
+interface ServicesDataShape { title: string; subtitle: string; services: ServiceItem[]; }
 
 const Services = () => {
-  const [servicesData] = useLocalStorage('servicesData', defaultServicesData);
+  const [servicesDataRaw] = useLocalStorage('servicesData', defaultServicesData);
+  const raw: unknown = servicesDataRaw;
+  const obj: Partial<ServicesDataShape> = raw && typeof raw === 'object' ? (raw as Partial<ServicesDataShape>) : {};
+  const servicesData: ServicesDataShape = {
+    title: obj.title ?? defaultServicesData.title,
+    subtitle: obj.subtitle ?? defaultServicesData.subtitle,
+    services: asArray<ServiceItem>(obj.services, defaultServicesData.services)
+  };
 
   return (
     <section className="py-20 bg-gray-50">
