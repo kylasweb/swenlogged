@@ -36,13 +36,6 @@ const FloatingAIChat = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  const quickSuggestions = [
-    'What are shipping rates?',
-    'How to track my shipment?',
-    'Customs documentation help',
-    'Supply chain optimization'
-  ];
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
