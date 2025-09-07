@@ -1,16 +1,5 @@
 import { useState, useEffect } from 'react';
 
-// Extend window interface for TypeScript
-declare global {
-    interface Window {
-        puter?: {
-            ai?: {
-                chat: (prompt: string, options?: { temperature?: number; maxTokens?: number; model?: string }) => Promise<string | { message?: string | { content?: string }; text?: string; content?: string }>;
-            };
-        };
-    }
-}
-
 interface PuterConfig {
     isReady: boolean;
     isLoading: boolean;

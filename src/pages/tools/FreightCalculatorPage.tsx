@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, Truck, Ship, Plane, Package } from "lucide-react";
+import BackButton from '@/components/ui/BackButton';
 
 const FreightCalculatorPage = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +19,11 @@ const FreightCalculatorPage = () => {
     shippingMode: '',
     packageType: ''
   });
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    cost: string;
+    transitTime: string;
+    distance: number;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleCalculate = async () => {
@@ -60,6 +65,9 @@ const FreightCalculatorPage = () => {
       <main className="pt-16">
         <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-24">
           <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mb-6">
+              <BackButton to="/resources" label="Back to Resources" />
+            </div>
             <div className="mx-auto max-w-2xl text-center mb-12">
               <Calculator className="h-16 w-16 text-blue-600 mx-auto mb-6" />
               <h1 className="text-4xl font-bold tracking-tight text-gray-900 mb-4">

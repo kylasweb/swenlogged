@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Brain, TrendingUp, BarChart3, Target, Zap, Clock, Shield, Users } from "lucide-react";
 import DemandForecastingAssistant from "@/components/resources/DemandForecastingAssistant";
 import SEO from "@/components/SEO";
+import BackButton from '@/components/ui/BackButton';
 
 const DemandForecastingAssistantPage = () => {
   const features = [
@@ -101,6 +102,9 @@ const DemandForecastingAssistantPage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-purple-50 via-white to-blue-50 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6">
+            <BackButton to="/resources" label="Back to Resources" />
+          </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-3 mb-6">
               <Brain className="h-12 w-12 text-purple-600" />

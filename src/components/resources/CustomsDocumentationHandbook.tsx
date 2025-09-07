@@ -65,7 +65,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Official document describing the transaction between exporter and importer',
       category: 'essential',
       required: true,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'packing-list',
@@ -73,7 +74,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Detailed list of goods in each package with quantities and weights',
       category: 'essential',
       required: true,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'bill-of-lading',
@@ -81,7 +83,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Contract between shipper and carrier for transportation of goods',
       category: 'transport',
       required: true,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'certificate-origin',
@@ -89,7 +92,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Document declaring the country where the goods were produced',
       category: 'origin',
       required: false,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'insurance-cert',
@@ -97,7 +101,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Proof of cargo insurance coverage for the shipment',
       category: 'insurance',
       required: false,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'customs-declaration',
@@ -105,7 +110,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Formal statement to customs authorities about goods being imported',
       category: 'customs',
       required: true,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'import-license',
@@ -113,7 +119,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Government permission required for certain types of imports',
       category: 'permits',
       required: false,
-      countries: ['IN', 'CN', 'KR']
+      countries: ['IN', 'CN', 'KR'],
+      downloadUrl: '#'
     },
     {
       id: 'health-certificate',
@@ -121,7 +128,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Required for food, pharmaceuticals, and agricultural products',
       category: 'permits',
       required: false,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'safety-data-sheet',
@@ -129,7 +137,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Technical document for hazardous materials and chemicals',
       category: 'permits',
       required: false,
-      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA']
+      countries: ['US', 'EU', 'UK', 'CN', 'JP', 'KR', 'IN', 'SG', 'AU', 'CA'],
+      downloadUrl: '#'
     },
     {
       id: 'eur1-movement-certificate',
@@ -137,7 +146,8 @@ const CustomsDocumentationHandbook = () => {
       description: 'Proof of preferential origin for reduced customs duties in EU',
       category: 'preferential',
       required: false,
-      countries: ['EU', 'UK']
+      countries: ['EU', 'UK'],
+      downloadUrl: '#'
     }
   ];
 
@@ -174,9 +184,506 @@ const CustomsDocumentationHandbook = () => {
     );
   };
 
+  const generateDocumentContent = (documentId: string): string => {
+    const templates: Record<string, string> = {
+      'commercial-invoice': `COMMERCIAL INVOICE TEMPLATE
+
+SHIPPER/EXPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Phone/Fax/Email]
+
+CONSIGNEE/IMPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Phone/Fax/Email]
+
+INVOICE DETAILS:
+Invoice Number: [INV-XXXXXX]
+Invoice Date: [Date]
+Purchase Order: [PO Number]
+Terms of Payment: [Payment Terms]
+Terms of Delivery: [Incoterms]
+
+DESCRIPTION OF GOODS:
+--------------------------------------------------------------------------------
+| Item | Description | Quantity | Unit Price | Amount |
+--------------------------------------------------------------------------------
+| 1    | [Product Description] | [Qty] | [Price] | [Total] |
+--------------------------------------------------------------------------------
+
+TOTAL VALUE: [Currency] [Amount]
+TOTAL PACKAGES: [Number]
+GROSS WEIGHT: [Weight] [Unit]
+NET WEIGHT: [Weight] [Unit]
+
+DECLARATION:
+We hereby certify that the information on this invoice is true and correct to the best of our knowledge.
+
+Authorized Signature: ____________________
+Date: ____________________`,
+
+      'packing-list': `PACKING LIST TEMPLATE
+
+SHIPPER/EXPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+CONSIGNEE/IMPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+PACKING DETAILS:
+Invoice Number: [INV-XXXXXX]
+Date: [Date]
+Purchase Order: [PO Number]
+
+PACKAGE INFORMATION:
+--------------------------------------------------------------------------------
+| Package | Description | Quantity | Weight | Dimensions |
+| Number  |             |          |        |            |
+--------------------------------------------------------------------------------
+| 1       | [Contents]  | [Qty]    | [Wt]   | [L x W x H] |
+--------------------------------------------------------------------------------
+
+TOTAL PACKAGES: [Number]
+TOTAL GROSS WEIGHT: [Weight] [Unit]
+TOTAL NET WEIGHT: [Weight] [Unit]
+TOTAL VOLUME: [Volume] [Unit³]
+
+SPECIAL INSTRUCTIONS:
+[Marking Requirements]
+[Handling Instructions]
+[Storage Conditions]`,
+
+      'bill-of-lading': `BILL OF LADING TEMPLATE
+
+OCEAN BILL OF LADING
+
+SHIPPER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+CONSIGNEE:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+NOTIFY PARTY:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+PRE-CARRIAGE BY: [Transport Mode]
+PLACE OF RECEIPT: [Location]
+
+OCEAN VESSEL: [Vessel Name]
+VOYAGE NO: [Voyage Number]
+
+PORT OF LOADING: [Port]
+PORT OF DISCHARGE: [Port]
+PLACE OF DELIVERY: [Location]
+
+MARKS & NUMBERS:
+[Container/Marks]
+
+DESCRIPTION OF PACKAGES AND GOODS:
+[Number of Packages] [Package Type]
+[Description of Goods]
+[HS Code: XXXXXXXX]
+
+GROSS WEIGHT: [Weight] [Unit]
+MEASUREMENT: [Volume] [Unit³]
+
+FREIGHT & CHARGES:
+[Freight Charges]
+[Additional Charges]
+
+DECLARED VALUE: [Currency] [Amount]
+
+PLACE AND DATE OF ISSUE: [Location], [Date]
+
+CARRIER SIGNATURE: ____________________`,
+
+      'certificate-origin': `CERTIFICATE OF ORIGIN TEMPLATE
+
+CERTIFICATE OF ORIGIN
+
+ISSUING AUTHORITY:
+[Chamber of Commerce/Trade Authority]
+[Address]
+[City, Country]
+
+CERTIFICATE NUMBER: [CERT-XXXXXX]
+DATE OF ISSUE: [Date]
+
+EXPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Tax ID/Registration Number]
+
+IMPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+DESCRIPTION OF GOODS:
+--------------------------------------------------------------------------------
+| Marks | Description | Quantity | Value | Origin |
+--------------------------------------------------------------------------------
+| [Marks]| [Product]   | [Qty]    | [Amt] | [Country]|
+--------------------------------------------------------------------------------
+
+DECLARATION:
+We hereby declare that the goods described above originate from [Country of Origin] and that they comply with the rules of origin requirements.
+
+Authorized Signature: ____________________
+Company Stamp/Seal
+
+Date: ____________________`,
+
+      'insurance-cert': `INSURANCE CERTIFICATE TEMPLATE
+
+CARGO INSURANCE CERTIFICATE
+
+INSURANCE COMPANY:
+[Insurance Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Phone/Fax/Email]
+
+INSURED:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+VOYAGE/POLICY DETAILS:
+Policy Number: [POL-XXXXXX]
+Date of Issue: [Date]
+Period of Insurance: [From Date] to [To Date]
+
+VESSEL/AIRCRAFT: [Vessel Name/Flight Number]
+VOYAGE/FLIGHT: [Route/Itinerary]
+
+DESCRIPTION OF GOODS:
+[Description of Cargo]
+Value: [Currency] [Amount]
+
+CONVEYANCE: [Mode of Transport]
+FROM: [Origin] TO: [Destination]
+
+CONDITIONS:
+[Insurance Conditions - All Risks, War Risks, etc.]
+Sum Insured: [Currency] [Amount]
+
+AUTHORIZED SIGNATURE: ____________________
+Date: ____________________`,
+
+      'customs-declaration': `CUSTOMS DECLARATION TEMPLATE
+
+CUSTOMS DECLARATION FORM
+
+DECLARATION NUMBER: [DEC-XXXXXX]
+DATE: [Date]
+
+IMPORTER DETAILS:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Tax ID/Import License]
+
+DESCRIPTION OF GOODS:
+--------------------------------------------------------------------------------
+| HS Code | Description | Quantity | Value | Origin |
+--------------------------------------------------------------------------------
+| XXXXXXXX| [Product]   | [Qty]    | [Amt] | [Country]|
+--------------------------------------------------------------------------------
+
+CUSTOMS VALUE: [Currency] [Amount]
+DUTY RATE: [Rate]%
+CALCULATED DUTY: [Currency] [Amount]
+
+ADDITIONAL INFORMATION:
+[Special Requirements]
+[Certificate Numbers]
+[License Numbers]
+
+DECLARATION:
+I hereby declare that the information provided is true and correct.
+
+Signature: ____________________
+Date: ____________________`,
+
+      'import-license': `IMPORT LICENSE TEMPLATE
+
+IMPORT LICENSE
+
+ISSUING AUTHORITY:
+[Government Department]
+[Address]
+[City, Country]
+
+LICENSE NUMBER: [LIC-XXXXXX]
+DATE OF ISSUE: [Date]
+VALID UNTIL: [Expiry Date]
+
+IMPORTER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Tax ID/Registration Number]
+
+DESCRIPTION OF GOODS:
+[Product Description]
+HS Code: [XXXXXXXX]
+Quantity: [Qty] [Unit]
+Value: [Currency] [Amount]
+
+PURPOSE: [Commercial/Industrial/Other]
+
+CONDITIONS:
+[License Conditions and Restrictions]
+
+AUTHORIZED SIGNATURE: ____________________
+Official Seal`,
+
+      'health-certificate': `HEALTH CERTIFICATE TEMPLATE
+
+HEALTH CERTIFICATE
+
+ISSUING AUTHORITY:
+[Veterinary/Health Authority]
+[Address]
+[City, Country]
+
+CERTIFICATE NUMBER: [HC-XXXXXX]
+DATE OF ISSUE: [Date]
+
+EXPORTER/PRODUCER:
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+[Registration Number]
+
+PRODUCT DETAILS:
+Product Name: [Product Description]
+Batch/Lot Number: [Batch Number]
+Quantity: [Qty] [Unit]
+Packaging: [Packaging Description]
+
+HEALTH REQUIREMENTS:
+✓ Free from harmful substances
+✓ Meets [Country] health standards
+✓ Complies with [Specific Regulations]
+✓ Laboratory tested and approved
+
+INSPECTION RESULTS:
+[Test Results and Findings]
+
+VALIDITY: This certificate is valid for [Period]
+
+AUTHORIZED VETERINARIAN/OFFICIAL: ____________________
+Official Stamp/Seal
+
+Date: ____________________`,
+
+      'safety-data-sheet': `SAFETY DATA SHEET TEMPLATE
+
+SAFETY DATA SHEET (SDS)
+
+SECTION 1: IDENTIFICATION
+Product Name: [Product Name]
+Product Code: [Code]
+Manufacturer: [Company Name]
+Address: [Address]
+Emergency Phone: [Phone Number]
+
+SECTION 2: HAZARD IDENTIFICATION
+Hazard Classification: [Hazard Class]
+Signal Word: [WARNING/DANGER]
+Hazard Statements: [Specific Hazards]
+Precautionary Statements: [Safety Precautions]
+
+SECTION 3: COMPOSITION/INFORMATION ON INGREDIENTS
+Chemical Name: [Chemical Name]
+CAS Number: [CAS Number]
+Concentration: [Percentage]%
+
+SECTION 4: FIRST AID MEASURES
+Eye Contact: [First Aid Instructions]
+Skin Contact: [First Aid Instructions]
+Ingestion: [First Aid Instructions]
+Inhalation: [First Aid Instructions]
+
+SECTION 5: FIRE FIGHTING MEASURES
+Suitable Extinguishing Media: [Media]
+Unsuitable Extinguishing Media: [Media]
+Special Hazards: [Hazards]
+
+SECTION 6: ACCIDENTAL RELEASE MEASURES
+Personal Precautions: [Precautions]
+Environmental Precautions: [Precautions]
+Cleanup Methods: [Methods]
+
+SECTION 7: HANDLING AND STORAGE
+Handling: [Safe Handling Procedures]
+Storage: [Storage Conditions]
+
+SECTION 8: EXPOSURE CONTROLS/PERSONAL PROTECTION
+Exposure Limits: [Limits]
+Engineering Controls: [Controls]
+PPE Required: [Personal Protective Equipment]
+
+SECTION 9: PHYSICAL AND CHEMICAL PROPERTIES
+Appearance: [Description]
+Odor: [Description]
+pH: [Value]
+Boiling Point: [Temperature]
+Melting Point: [Temperature]
+
+SECTION 10: STABILITY AND REACTIVITY
+Stability: [Stable/Unstable]
+Conditions to Avoid: [Conditions]
+Incompatible Materials: [Materials]
+
+SECTION 11: TOXICOLOGICAL INFORMATION
+Acute Toxicity: [LD50/LC50 values]
+Chronic Effects: [Effects]
+
+SECTION 12: ECOLOGICAL INFORMATION
+Ecotoxicity: [Environmental Impact]
+Persistence/Degradability: [Information]
+
+SECTION 13: DISPOSAL CONSIDERATIONS
+Disposal Methods: [Methods]
+Regulatory Requirements: [Requirements]
+
+SECTION 14: TRANSPORT INFORMATION
+UN Number: [UN Number]
+Proper Shipping Name: [Name]
+Hazard Class: [Class]
+
+SECTION 15: REGULATORY INFORMATION
+Regulatory Information: [Applicable Regulations]
+
+SECTION 16: OTHER INFORMATION
+Revision Date: [Date]
+Prepared By: [Name]`,
+
+      'eur1-movement-certificate': `EUR.1 MOVEMENT CERTIFICATE TEMPLATE
+
+MOVEMENT CERTIFICATE EUR.1
+
+1. Exporter (name, full address, country):
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+2. Certificate used in preferential trade between:
+[Exporting Country] and [Importing Country]
+
+3. Consignee (name, full address, country):
+[Company Name]
+[Address]
+[City, State, ZIP Code]
+[Country]
+
+4. Country, group of countries or territory in which the products are considered as originating:
+[Country of Origin]
+
+5. Country, group of countries or territory of destination:
+[Country of Destination]
+
+6. Transport details:
+Mode of transport: [Mode]
+Identification: [Vessel/Flight/Truck Number]
+
+7. Remarks:
+[Additional Information]
+
+8. Item number; Marks and numbers; Number and kind of packages; Description of goods:
+--------------------------------------------------------------------------------
+| Item | Marks | Packages | Description | Origin Criterion |
+--------------------------------------------------------------------------------
+| 1    | [Marks]| [Number] | [Description]| [Criterion]      |
+--------------------------------------------------------------------------------
+
+9. Gross weight (kg) or other measure (litres, m³, etc.):
+[Weight/Measure]
+
+10. Invoices:
+[Invoice Numbers and Dates]
+
+11. Declaration by the exporter:
+The undersigned hereby declares that the goods described above originate in the country or territory specified in box 4 and that they comply with the origin requirements specified for those goods in the preferential trade agreement between the countries listed in box 2.
+
+Place and date: [Location], [Date]
+Signature of the exporter: ____________________
+
+12. Certification:
+The information in boxes 1 to 11 has been checked and found to be correct.
+
+Place and date: [Location], [Date]
+Signature and stamp of the certifying authority: ____________________`
+    };
+
+    return templates[documentId] || `TEMPLATE FOR ${documentId.toUpperCase()}\n\nThis is a sample template. Please customize with your specific information.`;
+  };
+
   const handleDownloadTemplate = (documentId: string) => {
-    // Simulate download
-    toast.success(`Downloading ${documentTemplates.find(d => d.id === documentId)?.name} template...`);
+    const template = documentTemplates.find(d => d.id === documentId);
+    if (!template) {
+      toast.error('Template not found');
+      return;
+    }
+
+    try {
+      // Generate content for the document
+      const content = generateDocumentContent(documentId);
+
+      // Create a blob with the content
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+
+      // Create a download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${template.name.replace(/\s+/g, '_').toLowerCase()}_template.txt`;
+
+      // Trigger the download
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Downloaded ${template.name} template successfully!`);
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast.error('Failed to download template. Please try again.');
+    }
   };
 
   const generateChecklist = () => {

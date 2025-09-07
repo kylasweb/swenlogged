@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import PricePredictionEngine from '@/components/resources/PricePredictionEngine';
 import { Brain, TrendingUp, DollarSign, BarChart3, Target, AlertTriangle, Zap, Shield, Clock, Users } from "lucide-react";
+import BackButton from '@/components/ui/BackButton';
 
 const PricePredictionEnginePage = () => {
   return (
@@ -22,6 +23,9 @@ const PricePredictionEnginePage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20">
         <div className="max-w-6xl mx-auto px-6">
+          <div className="mb-6">
+            <BackButton to="/resources" label="Back to Resources" />
+          </div>
           <div className="text-center space-y-6">
             <div className="flex items-center justify-center gap-3 mb-6">
               <Brain className="h-12 w-12 text-purple-300" />

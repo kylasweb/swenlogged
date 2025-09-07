@@ -7,6 +7,8 @@ declare global {
           testMode?: boolean;
           model?: string;
           stream?: boolean;
+          temperature?: number;
+          maxTokens?: number;
         }) => Promise<{
           message?: {
             content: string | Array<{ type: string; text: string }>;

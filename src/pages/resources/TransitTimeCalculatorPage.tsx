@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import TransitTimeCalculator from '@/components/resources/TransitTimeCalculator';
 import SEO from '@/components/SEO';
+import BackButton from '@/components/ui/BackButton';
 
 const TransitTimeCalculatorPage = () => {
   return (
@@ -17,7 +18,12 @@ const TransitTimeCalculatorPage = () => {
       <Header />
       <main className="pt-16 min-h-screen bg-gray-50">
         <div className="py-12">
-          <TransitTimeCalculator />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-6">
+              <BackButton to="/resources" label="Back to Resources" />
+            </div>
+            <TransitTimeCalculator />
+          </div>
         </div>
       </main>
       <Footer />

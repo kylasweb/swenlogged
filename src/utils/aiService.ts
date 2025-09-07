@@ -17,6 +17,15 @@ interface AIResponse {
   error?: string;
 }
 
+interface FlexibleResponse {
+  text?: string;
+  content?: string | unknown;
+  message?: {
+    content?: string | Array<{ type: string; text: string }>;
+  };
+  [key: string]: unknown;
+}
+
 class UnifiedAIService {
   private static instance: UnifiedAIService;
   private trainingData: TrainingData[] = [];
@@ -162,18 +171,21 @@ class UnifiedAIService {
       if (response) {
         if (typeof response === 'string') {
           responseText = response;
-        } else if (response.text) {
-          responseText = response.text;
-        } else if (response.content) {
-          responseText = String(response.content);
-        } else if (response.message?.content) {
-          if (typeof response.message.content === 'string') {
-            responseText = response.message.content;
-          } else if (Array.isArray(response.message.content)) {
-            responseText = response.message.content
-              .filter((item: any) => item.type === 'text')
-              .map((item: any) => item.text)
-              .join('');
+        } else if (typeof response === 'object' && response !== null) {
+          const responseObj = response as FlexibleResponse;
+          if (responseObj.text) {
+            responseText = responseObj.text;
+          } else if (responseObj.content) {
+            responseText = String(responseObj.content);
+          } else if (responseObj.message?.content) {
+            if (typeof responseObj.message.content === 'string') {
+              responseText = responseObj.message.content;
+            } else if (Array.isArray(responseObj.message.content)) {
+              responseText = responseObj.message.content
+                .filter((item: { type: string; text: string }) => item.type === 'text')
+                .map((item: { type: string; text: string }) => item.text)
+                .join('');
+            }
           }
         }
       }

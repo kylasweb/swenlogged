@@ -3,6 +3,7 @@ import { Helmet } from 'react-helmet-async';
 import SupplyChainAcademy from '@/components/resources/SupplyChainAcademy';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, Award, Users, TrendingUp } from 'lucide-react';
+import BackButton from '@/components/ui/BackButton';
 
 const SupplyChainAcademyPage = () => {
   return (
@@ -30,6 +31,9 @@ const SupplyChainAcademyPage = () => {
         {/* Hero Section */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="mb-6">
+              <BackButton to="/resources" label="Back to Resources" />
+            </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-3 mb-6">
                 <div className="p-3 bg-white/10 rounded-full">

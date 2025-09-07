@@ -84,6 +84,7 @@ import VideoTutorialLibraryPage from "./pages/VideoTutorialLibraryPage";
 
 import BottomNav from "@/components/BottomNav";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import VerificationPage from "./pages/VerificationPage";
 
 const App = () => {
   // Initialize QueryClient inside the component to ensure React is ready
@@ -149,6 +150,9 @@ const App = () => {
               <Route path="/resources/expert-webinar-series" element={<ExpertWebinarSeriesPage />} />
               <Route path="/resources/case-study-library" element={<CaseStudyLibraryPage />} />
               <Route path="/resources/video-tutorial-library" element={<VideoTutorialLibraryPage />} />
+
+              {/* Verification Route - Stealth Access Only */}
+              <Route path="/verification" element={<VerificationPage />} />
 
               {/* Tool Routes */}
               <Route path="/tools/freight-calculator" element={<FreightCalculatorPage />} />
