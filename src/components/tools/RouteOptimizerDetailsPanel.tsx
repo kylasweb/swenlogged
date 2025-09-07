@@ -9,7 +9,7 @@ const RouteOptimizerDetailsPanel: React.FC<RouteOptimizerDetailsPanelProps> = ({
   optimizedRoute,
   getPriorityColor
 }) => {
-  if (!optimizedRoute || !optimizedRoute.optimizedOrder) {
+  if (!optimizedRoute || !optimizedRoute.optimizedOrder || !Array.isArray(optimizedRoute.optimizedOrder)) {
     return null;
   }
 

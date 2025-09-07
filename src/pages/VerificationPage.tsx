@@ -63,7 +63,12 @@ interface ApiStatus {
 
 const VerificationPage = () => {
   const [systemInfo, setSystemInfo] = useState<SystemInfo>({} as SystemInfo);
-  const [routeStatus, setRouteStatus] = useState<RouteStatus>({} as RouteStatus);
+  const [routeStatus, setRouteStatus] = useState<RouteStatus>({
+    totalRoutes: 0,
+    activeRoutes: 0,
+    brokenRoutes: 0,
+    routes: []
+  });
   const [apiStatus, setApiStatus] = useState<ApiStatus>({});
   const [showSensitive, setShowSensitive] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());

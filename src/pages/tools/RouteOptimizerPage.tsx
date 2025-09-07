@@ -30,7 +30,7 @@ const RouteOptimizerPage = () => {
   };
 
   const addViaStop = () => {
-    const newId = viaStops.length ? Math.max(...viaStops.map(v => v.id)) + 1 : 1000;
+    const newId = viaStops.length > 0 ? Math.max(...viaStops.map(v => v.id)) + 1 : 1000;
     setViaStops([...viaStops, {
       id: newId,
       name: "",
@@ -72,7 +72,7 @@ const RouteOptimizerPage = () => {
   ];
 
   const addRoute = () => {
-    const newId = routes.length ? Math.max(...routes.map(r => r.id)) + 1 : 1000;
+    const newId = routes.length > 0 ? Math.max(...routes.map(r => r.id)) + 1 : 1000;
     setRoutes([...routes, { 
       id: newId, 
       name: '', 

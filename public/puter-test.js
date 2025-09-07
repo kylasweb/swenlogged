@@ -30,8 +30,8 @@ async function testPuterAI() {
       if (response.message?.content) {
         if (Array.isArray(response.message.content)) {
           responseText = response.message.content
-            .filter(item => item.type === 'text')
-            .map(item => item.text)
+            .filter(item => item && typeof item === 'object' && item.type === 'text')
+            .map(item => item && typeof item === 'object' && item.text ? item.text : '')
             .join('');
         } else if (typeof response.message.content === 'string') {
           responseText = response.message.content;
