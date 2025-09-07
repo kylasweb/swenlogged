@@ -6,29 +6,36 @@ import { ICONS } from './icons';
 const About = () => {
   const [aboutData] = useLocalStorage('aboutData', defaultAboutData);
 
+  // Ensure aboutData has the required structure
+  const safeAboutData = {
+    ...defaultAboutData,
+    ...aboutData,
+    values: aboutData?.values || defaultAboutData.values || []
+  };
+
   return (
     <section className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div>
             <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              {aboutData.title}
+              {safeAboutData.title}
             </h2>
             <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-              {aboutData.paragraph1}
+              {safeAboutData.paragraph1}
             </p>
             <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-              {aboutData.paragraph2}
+              {safeAboutData.paragraph2}
             </p>
             
             <div className="grid grid-cols-2 gap-8 mb-8">
               <div>
-                <div className="text-3xl font-bold text-blue-800 mb-2">{aboutData.stat1_value}</div>
-                <div className="text-gray-600">{aboutData.stat1_label}</div>
+                <div className="text-3xl font-bold text-blue-800 mb-2">{safeAboutData.stat1_value}</div>
+                <div className="text-gray-600">{safeAboutData.stat1_label}</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-blue-800 mb-2">{aboutData.stat2_value}</div>
-                <div className="text-gray-600">{aboutData.stat2_label}</div>
+                <div className="text-3xl font-bold text-blue-800 mb-2">{safeAboutData.stat2_value}</div>
+                <div className="text-gray-600">{safeAboutData.stat2_label}</div>
               </div>
             </div>
 
@@ -38,8 +45,8 @@ const About = () => {
           </div>
 
           <div className="space-y-6">
-            <h3 className="text-2xl font-bold text-gray-900 mb-8">{aboutData.values_title}</h3>
-            {aboutData.values.map((value) => {
+            <h3 className="text-2xl font-bold text-gray-900 mb-8">{safeAboutData.values_title}</h3>
+            {safeAboutData.values.map((value) => {
               const Icon = ICONS[value.icon];
               return (
                 <div key={value.title} className="flex items-start space-x-4">
