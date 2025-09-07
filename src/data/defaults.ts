@@ -1,6 +1,6 @@
 export const defaultHeroData = {
   mainHeading: "SWENLOG Supply Chain",
-  subHeading: "Solutions", 
+  subHeading: "Solutions",
   description: "Your trusted partner for comprehensive logistics and supply chain solutions across India. From strategic planning to last-mile delivery, we ensure your cargo reaches its destination safely and on time.",
   imageUrl: "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80",
 };
@@ -35,24 +35,24 @@ export const defaultPages = [
 ];
 
 export const defaultSubmissions = [
-    { id: 'q1', name: 'John Doe', email: 'john@example.com', service: 'Air Freight', message: 'Looking to ship 2 tons of coffee beans from Colombia to USA.', status: 'new' as const, createdAt: new Date().toISOString() },
-    { id: 'q2', name: 'Jane Smith', email: 'jane@example.com', service: 'Ocean Freight', message: 'Need a quote for a full container load from Shanghai to Los Angeles.', status: 'contacted' as const, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'q1', name: 'John Doe', email: 'john@example.com', service: 'Air Freight', message: 'Looking to ship 2 tons of coffee beans from Colombia to USA.', status: 'new' as const, createdAt: new Date().toISOString() },
+  { id: 'q2', name: 'Jane Smith', email: 'jane@example.com', service: 'Ocean Freight', message: 'Need a quote for a full container load from Shanghai to Los Angeles.', status: 'contacted' as const, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
 ];
 
 export const defaultAboutData = {
-    title: "About SWENLOG",
-    paragraph1: "SWENLOG Supply Chain Solutions Private Limited has established itself as a leading logistics and supply chain management company in India. With our registered office in Chennai and corporate headquarters in Bengaluru, we serve clients across multiple industries with comprehensive logistics solutions.",
-    paragraph2: "Our strategic presence across key Indian cities - including Chennai, Bengaluru, Coimbatore, Tuticorin, Cochin, Mumbai, and Delhi - enables us to provide seamless supply chain solutions from port to doorstep. We specialize in serving automotive, pharmaceutical, engineering, FMCG, and other critical industries.",
-    stat1_value: "7",
-    stat1_label: "Strategic Locations",
-    stat2_value: "500+",
-    stat2_label: "Happy Clients",
-    values_title: "Our Core Values",
-    values: [
-        { id: 'v1', icon: 'Shield', title: 'Reliability & Trust', description: 'Building long-term relationships through consistent, dependable service delivery.' },
-        { id: 'v2', icon: 'Lightbulb', title: 'Innovation', description: 'Leveraging technology and best practices to optimize supply chain efficiency.' },
-        { id: 'v3', icon: 'Users', title: 'Customer Focus', description: 'Tailoring solutions to meet unique industry requirements and business needs.' }
-    ]
+  title: "About SWENLOG",
+  paragraph1: "SWENLOG Supply Chain Solutions Private Limited has established itself as a leading logistics and supply chain management company in India. With our registered office in Chennai and corporate headquarters in Bengaluru, we serve clients across multiple industries with comprehensive logistics solutions.",
+  paragraph2: "Our strategic presence across key Indian cities - including Chennai, Bengaluru, Coimbatore, Tuticorin, Cochin, Mumbai, and Delhi - enables us to provide seamless supply chain solutions from port to doorstep. We specialize in serving automotive, pharmaceutical, engineering, FMCG, and other critical industries.",
+  stat1_value: "7",
+  stat1_label: "Strategic Locations",
+  stat2_value: "500+",
+  stat2_label: "Happy Clients",
+  values_title: "Our Core Values",
+  values: [
+    { id: 'v1', icon: 'Shield', title: 'Reliability & Trust', description: 'Building long-term relationships through consistent, dependable service delivery.' },
+    { id: 'v2', icon: 'Lightbulb', title: 'Innovation', description: 'Leveraging technology and best practices to optimize supply chain efficiency.' },
+    { id: 'v3', icon: 'Users', title: 'Customer Focus', description: 'Tailoring solutions to meet unique industry requirements and business needs.' }
+  ]
 };
 
 export const defaultHeaderData = {
@@ -86,8 +86,14 @@ export const defaultHeaderData = {
       ]
     },
     { name: 'About Us', url: '/about-us' },
-    { name: 'Locations', url: '/locations' },
-    { name: 'Networks', url: '/networks' },
+    {
+      name: 'Global Presence',
+      url: '#',
+      dropdown: [
+        { name: 'Locations', url: '/locations' },
+        { name: 'Networks', url: '/networks' }
+      ]
+    },
     { name: 'Resources', url: '/resources' },
     { name: 'Careers', url: '/careers' },
     { name: 'Contact', url: '/contact' }
@@ -147,28 +153,28 @@ export const defaultFooterData = {
 };
 
 export const defaultServicesData = {
-    title: "Comprehensive Logistics Services",
-    subtitle: "From single shipments to complex supply chain management, SWENLOG provides tailored solutions that drive your business forward.",
-    services: [
-        { id: 's1', slug: 'ocean-freight', icon: 'Ship', title: 'Ocean Freight', description: 'Cost-effective shipping solutions for full container loads (FCL) and less-than-container loads (LCL) worldwide.', features: 'Port-to-port delivery\nDoor-to-door service\nCargo consolidation\nReal-time tracking' },
-        { id: 's2', slug: 'air-freight', icon: 'Plane', title: 'Air Freight', description: 'Fast, reliable air cargo services for time-sensitive shipments with global network coverage.', features: 'Express delivery\nTemperature controlled\nDangerous goods handling\nCharter services' },
-        { id: 's3', slug: 'ground-transportation', icon: 'Truck', title: 'Ground Transportation', description: 'Comprehensive trucking and rail services for domestic and cross-border transportation needs.', features: 'LTL & FTL services\nCross-docking\nLast-mile delivery\nSpecialized equipment' },
-        { id: 's4', slug: 'customs-brokerage', icon: 'FileText', title: 'Customs Brokerage', description: 'Expert customs clearance and trade compliance services to navigate complex regulations.', features: 'Documentation prep\nDuty optimization\nTrade compliance\nRegulatory updates' },
-        { id: 's5', slug: 'warehousing-distribution', icon: 'Warehouse', title: 'Warehousing & Distribution', description: 'Strategic distribution centers and fulfillment services to optimize your supply chain.', features: 'Inventory management\nPick & pack\nCross-docking\nValue-added services' },
-        { id: 's6', slug: 'supply-chain-solutions', icon: 'BarChart3', title: 'Supply Chain Solutions', description: 'End-to-end supply chain optimization and consulting to improve efficiency and reduce costs.', features: 'Supply chain design\nVendor management\nAnalytics & reporting\nProcess optimization' }
-    ]
+  title: "Comprehensive Logistics Services",
+  subtitle: "From single shipments to complex supply chain management, SWENLOG provides tailored solutions that drive your business forward.",
+  services: [
+    { id: 's1', slug: 'ocean-freight', icon: 'Ship', title: 'Ocean Freight', description: 'Cost-effective shipping solutions for full container loads (FCL) and less-than-container loads (LCL) worldwide.', features: 'Port-to-port delivery\nDoor-to-door service\nCargo consolidation\nReal-time tracking' },
+    { id: 's2', slug: 'air-freight', icon: 'Plane', title: 'Air Freight', description: 'Fast, reliable air cargo services for time-sensitive shipments with global network coverage.', features: 'Express delivery\nTemperature controlled\nDangerous goods handling\nCharter services' },
+    { id: 's3', slug: 'ground-transportation', icon: 'Truck', title: 'Ground Transportation', description: 'Comprehensive trucking and rail services for domestic and cross-border transportation needs.', features: 'LTL & FTL services\nCross-docking\nLast-mile delivery\nSpecialized equipment' },
+    { id: 's4', slug: 'customs-brokerage', icon: 'FileText', title: 'Customs Brokerage', description: 'Expert customs clearance and trade compliance services to navigate complex regulations.', features: 'Documentation prep\nDuty optimization\nTrade compliance\nRegulatory updates' },
+    { id: 's5', slug: 'warehousing-distribution', icon: 'Warehouse', title: 'Warehousing & Distribution', description: 'Strategic distribution centers and fulfillment services to optimize your supply chain.', features: 'Inventory management\nPick & pack\nCross-docking\nValue-added services' },
+    { id: 's6', slug: 'supply-chain-solutions', icon: 'BarChart3', title: 'Supply Chain Solutions', description: 'End-to-end supply chain optimization and consulting to improve efficiency and reduce costs.', features: 'Supply chain design\nVendor management\nAnalytics & reporting\nProcess optimization' }
+  ]
 };
 
 export const defaultIndustriesData = {
   title: "Tailored Solutions for Your Industry",
   subtitle: "We have deep expertise in a wide range of industries, providing specialized logistics solutions to meet unique challenges.",
   industries: [
-    { id: 'i1', slug: 'automotive', icon: 'Truck', title: 'Automotive', description: 'Just-in-time delivery and specialized handling for the automotive supply chain.', content: 'Our automotive logistics solutions are designed to meet the high-pressure demands of the automotive industry. We provide reliable and efficient transportation for parts and finished vehicles, ensuring your supply chain runs smoothly.'},
-    { id: 'i2', slug: 'technology', icon: 'Zap', title: 'Technology', description: 'Secure and efficient transport for high-value electronics and components.', content: 'We offer secure, climate-controlled shipping and warehousing for sensitive and high-value technology products. Our robust security measures and real-time tracking give you peace of mind.'},
-    { id: 'i3', slug: 'retail-fashion', icon: 'Archive', title: 'Retail & Fashion', description: 'Fast-paced logistics solutions to keep up with consumer demand and seasonal trends.', content: 'In the fast-moving world of retail and fashion, speed and accuracy are key. We provide agile logistics solutions, including e-commerce fulfillment and store distribution, to help you stay ahead of trends.'},
-    { id: 'i4', slug: 'healthcare', icon: 'Heart', title: 'Healthcare', description: 'Temperature-controlled and compliant shipping for pharmaceuticals and medical devices.', content: 'Our healthcare logistics services are fully compliant with industry regulations. We offer temperature-controlled shipping, secure warehousing, and specialized handling for pharmaceuticals, medical devices, and other healthcare products.'},
-    { id: 'i5', slug: 'manufacturing', icon: 'Wrench', title: 'Manufacturing', description: 'Streamlined logistics for raw materials and finished goods to keep production lines moving.', content: 'We support your manufacturing operations with end-to-end logistics for raw materials and finished products. Our solutions are designed to optimize your supply chain, reduce costs, and minimize downtime.'},
-    { id: 'i6', slug: 'energy', icon: 'Power', title: 'Energy', description: 'Specialized logistics for the energy sector, including oversized and hazardous materials.', content: 'We have the expertise and equipment to handle the unique logistics challenges of the energy sector. We can transport oversized equipment, hazardous materials, and provide support for remote project sites.'},
+    { id: 'i1', slug: 'automotive', icon: 'Truck', title: 'Automotive', description: 'Just-in-time delivery and specialized handling for the automotive supply chain.', content: 'Our automotive logistics solutions are designed to meet the high-pressure demands of the automotive industry. We provide reliable and efficient transportation for parts and finished vehicles, ensuring your supply chain runs smoothly.' },
+    { id: 'i2', slug: 'technology', icon: 'Zap', title: 'Technology', description: 'Secure and efficient transport for high-value electronics and components.', content: 'We offer secure, climate-controlled shipping and warehousing for sensitive and high-value technology products. Our robust security measures and real-time tracking give you peace of mind.' },
+    { id: 'i3', slug: 'retail-fashion', icon: 'Archive', title: 'Retail & Fashion', description: 'Fast-paced logistics solutions to keep up with consumer demand and seasonal trends.', content: 'In the fast-moving world of retail and fashion, speed and accuracy are key. We provide agile logistics solutions, including e-commerce fulfillment and store distribution, to help you stay ahead of trends.' },
+    { id: 'i4', slug: 'healthcare', icon: 'Heart', title: 'Healthcare', description: 'Temperature-controlled and compliant shipping for pharmaceuticals and medical devices.', content: 'Our healthcare logistics services are fully compliant with industry regulations. We offer temperature-controlled shipping, secure warehousing, and specialized handling for pharmaceuticals, medical devices, and other healthcare products.' },
+    { id: 'i5', slug: 'manufacturing', icon: 'Wrench', title: 'Manufacturing', description: 'Streamlined logistics for raw materials and finished goods to keep production lines moving.', content: 'We support your manufacturing operations with end-to-end logistics for raw materials and finished products. Our solutions are designed to optimize your supply chain, reduce costs, and minimize downtime.' },
+    { id: 'i6', slug: 'energy', icon: 'Power', title: 'Energy', description: 'Specialized logistics for the energy sector, including oversized and hazardous materials.', content: 'We have the expertise and equipment to handle the unique logistics challenges of the energy sector. We can transport oversized equipment, hazardous materials, and provide support for remote project sites.' },
   ]
 };
 
@@ -197,10 +203,12 @@ export const defaultWhatsappData = {
     { id: 't4', name: 'Service Inquiry Response', content: 'Hello {{name}}, thank you for your interest in our {{service_name}} services. A specialist will be in touch with you shortly to discuss your requirements.' }
   ],
   flows: [
-      { id: 'f1', name: 'New Lead Welcome Flow', trigger: 'New Contact', steps: [
-          { type: 'send_message' as const, templateId: 't1', delay: '1 minute' },
-          { type: 'wait' as const, duration: '24 hours' },
-          { type: 'send_message' as const, templateId: 't2', delay: '0 minutes' },
-      ]}
+    {
+      id: 'f1', name: 'New Lead Welcome Flow', trigger: 'New Contact', steps: [
+        { type: 'send_message' as const, templateId: 't1', delay: '1 minute' },
+        { type: 'wait' as const, duration: '24 hours' },
+        { type: 'send_message' as const, templateId: 't2', delay: '0 minutes' },
+      ]
+    }
   ]
 };

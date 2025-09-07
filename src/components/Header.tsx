@@ -26,10 +26,13 @@ const Header = () => {
     logoSubtext: obj.logoSubtext ?? defaultHeaderData.logoSubtext,
     ctaButtonText: obj.ctaButtonText ?? defaultHeaderData.ctaButtonText,
     ctaButtonLink: obj.ctaButtonLink ?? defaultHeaderData.ctaButtonLink,
-    navigationItems: asArray<NavItem>(obj.navigationItems, defaultHeaderData.navigationItems).map(item => ({
-      ...item,
-      dropdown: asArray<NavDropdownItem>(item.dropdown)
-    }))
+    navigationItems: asArray<NavItem>(obj.navigationItems, defaultHeaderData.navigationItems).map(item => {
+      const dd = asArray<NavDropdownItem>(item.dropdown);
+      return {
+        ...item,
+        dropdown: dd.length ? dd : undefined
+      };
+    })
   };
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -57,17 +60,17 @@ const Header = () => {
               <div
                 key={item.name}
                 className="relative"
-                onMouseEnter={() => item.dropdown && setActiveDropdown(item.name)}
+                onMouseEnter={() => item.dropdown && item.dropdown.length > 0 && setActiveDropdown(item.name)}
                 onMouseLeave={() => setActiveDropdown(null)}
               >
                 <Link to={item.url} className="flex items-center text-gray-700 hover:text-blue-800 font-medium transition-colors">
                   {item.name}
-                  {item.dropdown && <ChevronDown className="ml-1 h-4 w-4" />}
+                  {item.dropdown && item.dropdown.length > 0 && <ChevronDown className="ml-1 h-4 w-4" />}
                 </Link>
                 
-                {item.dropdown && activeDropdown === item.name && (
+                {item.dropdown && item.dropdown.length > 0 && activeDropdown === item.name && (
                   <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    {(item.dropdown || []).map((subItem) => (
+                    {item.dropdown.map((subItem) => (
                       <Link
                         key={subItem.name}
                         to={subItem.url}
