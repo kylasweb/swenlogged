@@ -72,7 +72,7 @@ const RouteOptimizerPage = () => {
   ];
 
   const addRoute = () => {
-    const newId = Math.max(...routes.map(r => r.id)) + 1;
+    const newId = routes.length ? Math.max(...routes.map(r => r.id)) + 1 : 1000;
     setRoutes([...routes, { 
       id: newId, 
       name: '', 

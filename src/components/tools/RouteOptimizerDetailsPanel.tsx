@@ -9,6 +9,10 @@ const RouteOptimizerDetailsPanel: React.FC<RouteOptimizerDetailsPanelProps> = ({
   optimizedRoute,
   getPriorityColor
 }) => {
+  if (!optimizedRoute || !optimizedRoute.optimizedOrder) {
+    return null;
+  }
+
   return (
     <div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
       <h3 className="text-xl font-bold text-gray-800 mb-4">Optimized Stop Sequence</h3>
