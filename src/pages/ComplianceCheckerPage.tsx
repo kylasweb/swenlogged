@@ -280,7 +280,7 @@ const ComplianceCheckerPage: React.FC = () => {
                             <span className="ml-2">Customs Compliance</span>
                           </h3>
                           <div className="space-y-2">
-                            {complianceResults.customsCompliance.requirements.map((req: string, index: number) => (
+                            {(complianceResults.customsCompliance.requirements || []).map((req: string, index: number) => (
                               <div key={index} className="flex items-center text-sm">
                                 <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
                                 {req}
@@ -296,7 +296,7 @@ const ComplianceCheckerPage: React.FC = () => {
                             <span className="ml-2">Regulatory Compliance</span>
                           </h3>
                           <div className="space-y-2">
-                            {complianceResults.regulatoryCompliance.requirements.map((req: string, index: number) => (
+                            {(complianceResults.regulatoryCompliance.requirements || []).map((req: string, index: number) => (
                               <div key={index} className="flex items-center text-sm">
                                 <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
                                 {req}
@@ -312,8 +312,8 @@ const ComplianceCheckerPage: React.FC = () => {
                             <span className="ml-2">Trade Restrictions</span>
                           </h3>
                           <div className="space-y-2">
-                            {complianceResults.tradeRestrictions.restrictions.length > 0 ? (
-                              complianceResults.tradeRestrictions.restrictions.map((restriction: string, index: number) => (
+                            {(complianceResults.tradeRestrictions.restrictions || []).length > 0 ? (
+                              (complianceResults.tradeRestrictions.restrictions || []).map((restriction: string, index: number) => (
                                 <div key={index} className="flex items-center text-sm">
                                   <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
                                   {restriction}
@@ -333,7 +333,7 @@ const ComplianceCheckerPage: React.FC = () => {
                       <div>
                         <h3 className="font-semibold mb-3">Recommendations</h3>
                         <ul className="space-y-2">
-                          {complianceResults.recommendations.map((rec: string, index: number) => (
+                          {(complianceResults.recommendations || []).map((rec: string, index: number) => (
                             <li key={index} className="flex items-start">
                               <CheckCircle className="w-4 h-4 mr-2 mt-1 text-blue-600" />
                               <span className="text-sm">{rec}</span>
