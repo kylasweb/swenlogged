@@ -18,7 +18,7 @@ export const resourceCategories = [
       { title: 'Supply Chain Academy', description: 'Interactive courses on logistics fundamentals and best practices.', url: '/resources/supply-chain-academy' },
       { title: 'Freight Calculator Guide', description: 'Step-by-step tutorials on calculating shipping costs and taxes.', url: '/resources/freight-calculator-guide' },
       { title: 'Customs Documentation Handbook', description: 'Comprehensive guide to required paperwork for different countries.', url: '/resources/customs-documentation-handbook' },
-      { title: 'Incoterms 2020 Interactive Guide', description: 'Visual explanations of shipping terms with real-world examples.' }
+      { title: 'Incoterms 2020 Interactive Guide', description: 'Visual explanations of shipping terms with real-world examples.', url: '/resources/incoterms-guide' }
     ]
   },
   {

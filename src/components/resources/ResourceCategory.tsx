@@ -17,6 +17,10 @@ interface ResourceCategoryProps {
 }
 
 const ResourceCategory = ({ title, icon: Icon, color, resources }: ResourceCategoryProps) => {
+  if (!resources || !Array.isArray(resources)) {
+    return null;
+  }
+
   return (
     <div className="mb-16">
       <div className="flex items-center mb-8">
