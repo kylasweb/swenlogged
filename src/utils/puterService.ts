@@ -14,6 +14,7 @@ interface AIRequestOptions {
     stream?: boolean; // reserved for future streaming support
     model?: string;
     timeoutMs?: number;
+    testMode?: boolean; // run through test endpoint (no auth / no credit usage)
 }
 
 interface AIParsedResponse<T = unknown> {
@@ -119,20 +120,68 @@ class PuterService {
         if (!ready) throw new Error('Puter.js AI service is not ready');
 
         try {
+            // Attempt silent auth (best-effort) if auth API present
+            try {
+                const maybeAuth = (window as unknown as { puter?: { auth?: { getUser?: () => Promise<unknown> } } }).puter?.auth;
+                if (maybeAuth && typeof maybeAuth.getUser === 'function') {
+                    // do not await aggressively; race is fine
+                    await Promise.race([
+                        maybeAuth.getUser(),
+                        new Promise(res => setTimeout(res, 500))
+                    ]);
+                }
+            } catch {/* silent */ }
+
             const apiOptions: Record<string, unknown> = {
-                model: options?.model || 'gpt-4o-mini',
+                model: options?.model || 'gpt-5-nano', // per prompt.md docs default / free-friendly
                 stream: options?.stream ?? false,
                 temperature: options?.temperature ?? 0.7,
             };
             if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
+            const testModeRequested = !!options?.testMode;
 
-            const responseRaw = await window.puter.ai.chat(prompt as unknown as string, apiOptions as Record<string, unknown>);
+            // helper to invoke chat with optional testMode
+            const invokeChat = async (useTestMode: boolean) => {
+                // Overloads per docs: chat(prompt), chat(prompt, options), chat(prompt, testModeBool, options)
+                if (useTestMode) {
+                    return (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(prompt, true, apiOptions);
+                }
+                return window.puter.ai.chat(prompt as string, apiOptions as Record<string, unknown>);
+            };
+
+            let responseRaw: unknown;
+            let attemptedTestFallback = false;
+            try {
+                responseRaw = await invokeChat(testModeRequested);
+            } catch (primaryErr) {
+                const pErr = primaryErr as { message?: string; code?: string };
+                const authLike = (pErr.message || '').toLowerCase().includes('auth') || (pErr.message || '').includes('401') || pErr.code === 'auth_canceled';
+                if (!testModeRequested && authLike) {
+                    // retry silently with testMode true
+                    attemptedTestFallback = true;
+                    responseRaw = await invokeChat(true);
+                } else {
+                    throw primaryErr;
+                }
+            }
 
             if (options?.rawResponse) return responseRaw;
 
             let text: string;
             try {
-                text = String(extractTextFromPuterResponse(responseRaw as unknown));
+                if (options?.stream && typeof responseRaw === 'object' && responseRaw && Symbol.asyncIterator in (responseRaw as Record<string, unknown>)) {
+                    // Aggregate streamed parts
+                    let aggregate = '';
+                    for await (const part of responseRaw as AsyncIterable<unknown>) {
+                        const fragment = (typeof part === 'object' && part && 'text' in (part as Record<string, unknown>)
+                            ? String((part as Record<string, unknown>).text || '')
+                            : typeof part === 'string' ? part : '');
+                        aggregate += fragment;
+                    }
+                    text = aggregate;
+                } else {
+                    text = String(extractTextFromPuterResponse(responseRaw as unknown));
+                }
             } catch {
                 text = String(responseRaw);
             }
@@ -140,13 +189,20 @@ class PuterService {
             return structured;
         } catch (error) {
             console.error('Puter.js AI request failed:', error);
-            if (error instanceof Error) {
-                if (error.message.includes('401') || error.message.includes('Unauthorized') || error.message.includes('authentication')) {
-                    console.warn('Puter.js authentication failed. Using fallback responses.');
-                    const fallback = this.getFallbackResponse(prompt);
-                    return { text: fallback, raw: null, model: options?.model, cached: true } satisfies AIParsedResponse;
-                }
+            const errObj = error as unknown as { message?: string; code?: string };
+            const message = (error instanceof Error ? error.message : '') || String(errObj?.message || '');
+            const code = errObj?.code || '';
+            if (
+                message.includes('401') ||
+                message.toLowerCase().includes('unauthorized') ||
+                message.toLowerCase().includes('authentication') ||
+                code === 'auth_canceled'
+            ) {
+                console.warn('Puter.js auth issue detected (', code || message, '). Returning fallback response.');
+                const fallback = this.getFallbackResponse(prompt);
+                return { text: fallback, raw: null, model: options?.model, cached: true } satisfies AIParsedResponse;
             }
+            // Non-auth errors propagate
             throw error;
         }
     }
@@ -196,6 +252,68 @@ class PuterService {
                 console.error('Error in Puter.js ready listener:', error);
             }
         });
+    }
+
+    /**
+     * Advanced chat supporting messages array (system/user/assistant roles) or single prompt.
+     * Accepts same AIRequestOptions plus optional onChunk callback for streaming progressive text.
+     */
+    async makeAIChat(params: {
+        prompt?: string;
+        messages?: Array<{ role: 'system' | 'user' | 'assistant' | 'function' | 'tool'; content: unknown }>;
+        options?: AIRequestOptions & { onChunk?: (chunk: string) => void };
+    }): Promise<AIParsedResponse> {
+        const { prompt, messages, options } = params;
+        if (!prompt && !messages) throw new Error('makeAIChat requires prompt or messages');
+        const ready = await this.ensureReady(options?.timeoutMs);
+        if (!ready) throw new Error('Puter.js AI service is not ready');
+
+        const baseOptions: Record<string, unknown> = {
+            model: options?.model || 'gpt-5-nano',
+            stream: options?.stream ?? false,
+            temperature: options?.temperature ?? 0.7,
+        };
+        if (options?.maxTokens !== undefined) baseOptions['max_tokens'] = options.maxTokens;
+
+        const invoke = async (useTest: boolean): Promise<unknown> => {
+            if (messages) {
+                if (useTest) return (window.puter.ai.chat as unknown as (m: unknown, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(messages, true, baseOptions);
+                return window.puter.ai.chat(messages as unknown as string, baseOptions); // SDK accepts array; cast keeps TS happy
+            }
+            if (prompt) {
+                if (useTest) return (window.puter.ai.chat as unknown as (p: string, testMode: boolean, opts: Record<string, unknown>) => Promise<unknown>)(prompt, true, baseOptions);
+                return window.puter.ai.chat(prompt, baseOptions);
+            }
+        };
+
+        let raw: unknown;
+        try {
+            raw = await invoke(!!options?.testMode);
+        } catch (err) {
+            const e = err as { message?: string; code?: string };
+            const authLike = (e.message || '').toLowerCase().includes('auth') || e.code === 'auth_canceled';
+            if (!options?.testMode && authLike) {
+                raw = await invoke(true);
+            } else {
+                throw err;
+            }
+        }
+
+        let text = '';
+        if (options?.stream && raw && typeof raw === 'object' && Symbol.asyncIterator in (raw as Record<string, unknown>)) {
+            for await (const part of raw as AsyncIterable<unknown>) {
+                const frag = (typeof part === 'object' && part && 'text' in (part as Record<string, unknown>)
+                    ? String((part as Record<string, unknown>).text || '')
+                    : '');
+                text += frag;
+                if (options?.onChunk && frag) options.onChunk(frag);
+            }
+        } else {
+            try {
+                text = String(extractTextFromPuterResponse(raw));
+            } catch { text = String(raw); }
+        }
+        return { text, raw, model: baseOptions.model as string };
     }
 }
 

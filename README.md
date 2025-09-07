@@ -111,6 +111,94 @@ Open DevTools > Application > Local Storage and remove keys prefixed with the to
 
 Prompts should: (1) declare exact JSON schema, (2) forbid markdown fences, (3) give minimal contextual lane/supplier/product info, (4) keep arrays concise.
 
+### Streaming & Conversational Chat
+
+Real-time AI output and multi-turn context are supported via:
+
+- `puterService.makeAIChat({ messages, options, onChunk })` – low-level helper that accepts an array of message objects (`{ role: 'system'|'user'|'assistant', content: string }`). If the underlying Puter API returns an async iterable, chunks are streamed through `onChunk`.
+- `useAIStreamingChat` – React hook that wraps message state, incremental streaming text, abort, and reset logic.
+
+Minimal usage example (component sketch):
+
+```tsx
+import { useAIStreamingChat } from "@/hooks/useAIStreamingChat";
+
+export function AIChatConsole() {
+  const chat = useAIStreamingChat();
+  const [input, setInput] = useState("");
+
+  const send = async () => {
+    if (!input.trim()) return;
+    chat.appendUser(input.trim());
+    setInput("");
+    await chat.run(); // streams into chat.streamingText
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="h-48 overflow-auto border rounded p-2 text-sm font-mono bg-black/5">
+        {chat.messages.map((m, i) => (
+          <div
+            key={i}
+            className={m.role === "user" ? "text-blue-700" : "text-slate-800"}
+          >
+            <strong>{m.role}:</strong> {m.content}
+          </div>
+        ))}
+        {chat.streamingText && (
+          <div className="text-green-700">
+            <strong>assistant (streaming):</strong> {chat.streamingText}
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          className="flex-1 border rounded px-2 py-1"
+          placeholder="Ask something…"
+        />
+        <button
+          onClick={send}
+          disabled={chat.loading}
+          className="px-3 py-1 border rounded"
+        >
+          {chat.loading ? "..." : "Send"}
+        </button>
+        {chat.loading && (
+          <button
+            onClick={chat.abort}
+            className="px-3 py-1 border rounded text-red-600"
+          >
+            Stop
+          </button>
+        )}
+      </div>
+      {chat.error && (
+        <div className="text-red-600 text-sm">{String(chat.error)}</div>
+      )}
+    </div>
+  );
+}
+```
+
+Key hook fields:
+
+- `messages`: full conversation so far.
+- `streamingText`: partial assistant reply being built chunk by chunk.
+- `appendUser(text)`: add a user message prior to `run()`.
+- `run()`: triggers streaming assistant response.
+- `abort()`: cancels an in-flight stream (if supported by provider).
+- `reset()`: clears all state.
+
+Integration Hints:
+
+- Keep a system message first to enforce persona / output contract.
+- For JSON-required answers, treat streaming as progressive preview; finalize by parsing on `run()` resolve.
+- Debounce UI reflows if rendering very large streamed outputs.
+- Provide a manual copy button once the final answer settles for user convenience.
+
 ## Local Development (Recap)
 
 Run the dev server:
