@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Bot } from 'lucide-react';
+import { puterService } from '@/utils/puterService';
 
 interface TrainingData {
   id: string;
@@ -27,62 +28,29 @@ const AIAssistant = () => {
 
   const handleAiQuery = async () => {
     if (!aiQuestion.trim()) return;
-    
+
     setAiLoading(true);
     setAiResponse('');
-    
+
     try {
-      // Wait for Puter.js to be fully loaded and initialized
-      let attempts = 0;
-      const maxAttempts = 100;
-      
-      while ((!window.puter || !window.puter.ai) && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      if (window.puter && window.puter.ai) {
-        console.log('Puter.js loaded, making AI request...');
-        
-        // Create context from training data
-        const trainingContext = trainingData.length > 0 
-          ? trainingData.map(entry => 
-              `Q: ${entry.question}\nA: ${entry.answer}\nCategory: ${entry.category}\nKeywords: ${entry.keywords.join(', ')}`
-            ).join('\n\n')
-          : '';
+      // Create context from training data
+      const trainingContext = trainingData.length > 0
+        ? trainingData.map(entry =>
+            `Q: ${entry.question}\nA: ${entry.answer}\nCategory: ${entry.category}\nKeywords: ${entry.keywords.join(', ')}`
+          ).join('\n\n')
+        : '';
 
-        const contextualPrompt = `You are SwenAI, a logistics and supply chain expert for SWENLOG Supply Chain Solutions. ${
-          trainingContext ? `Use the following training data to provide accurate answers when relevant:\n\n${trainingContext}\n\n` : ''
-        }Please provide helpful advice about: ${aiQuestion}`;
+      const contextualPrompt = `You are SwenAI, a logistics and supply chain expert for SWENLOG Supply Chain Solutions. ${
+        trainingContext ? `Use the following training data to provide accurate answers when relevant:\n\n${trainingContext}\n\n` : ''
+      }Please provide helpful advice about: ${aiQuestion}`;
 
-        const response = await window.puter.ai.chat(contextualPrompt, {
-          testMode: false,
-          model: 'gpt-4o-mini',
-          stream: false
-        });
-        
-        console.log('AI Response received:', response);
-        
-        // Extract text from content array if it exists
-        let responseText = 'No response received';
-        if (response?.message?.content) {
-          if (Array.isArray(response.message.content)) {
-            // Handle array of content objects with {type, text} structure
-            responseText = response.message.content
-              .filter(item => item.type === 'text')
-              .map(item => item.text)
-              .join('');
-          } else if (typeof response.message.content === 'string') {
-            responseText = response.message.content;
-          }
-        } else if (response?.toString?.()) {
-          responseText = response.toString();
-        }
-        setAiResponse(responseText);
-      } else {
-        console.error('Puter.js failed to load after maximum attempts');
-        setAiResponse('AI service could not be loaded. Please refresh the page and try again.');
-      }
+      const response = await puterService.makeAIRequest(contextualPrompt, {
+        temperature: 0.7,
+        maxTokens: 1000
+      });
+
+      console.log('AI Response received:', response);
+      setAiResponse(response);
     } catch (error) {
       console.error('Puter AI Error:', error);
       setAiResponse('Sorry, there was an error connecting to the AI service. Please try again later.');

@@ -5,22 +5,14 @@ import ResourcesAIAssistantSection from '@/components/resources/ResourcesAIAssis
 import ResourcesCategoryList from '@/components/resources/ResourcesCategoryList';
 import ResourcesFeaturedSection from '@/components/resources/ResourcesFeaturedSection';
 import { resourceCategories } from '@/data/resourceCategories';
+import { puterService } from '@/utils/puterService';
 
 const ResourcesPage = () => {
   useEffect(() => {
-    // Load Puter.js script
-    const script = document.createElement('script');
-    script.src = 'https://js.puter.com/v2/';
-    script.async = true;
-    document.head.appendChild(script);
-
-    return () => {
-      // Cleanup script on unmount
-      const existingScript = document.head.querySelector('script[src="https://js.puter.com/v2/"]');
-      if (existingScript) {
-        document.head.removeChild(existingScript);
-      }
-    };
+    // Initialize Puter.js service
+    puterService.initialize().catch(error => {
+      console.error('Failed to initialize Puter.js in ResourcesPage:', error);
+    });
   }, []);
 
   return (

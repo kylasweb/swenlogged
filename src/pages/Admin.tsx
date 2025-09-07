@@ -8,6 +8,7 @@ import PageManager from '@/components/admin/PageManager';
 import AboutManager from '@/components/admin/AboutManager';
 import ServicesManager from '@/components/admin/ServicesManager';
 import HeaderManager from '@/components/admin/HeaderManager';
+import { puterService } from '@/utils/puterService';
 import FooterManager from '@/components/admin/FooterManager';
 import CrmManager from '@/components/admin/CrmManager';
 import WhatsappManager from '@/components/admin/WhatsappManager';
@@ -20,18 +21,10 @@ const AdminPage = () => {
   const [activeView, setActiveView] = useState('hero');
 
   useEffect(() => {
-    // Load Puter.js script for admin AI
-    const script = document.createElement('script');
-    script.src = 'https://js.puter.com/v2/';
-    script.async = true;
-    document.head.appendChild(script);
-
-    return () => {
-      const existingScript = document.head.querySelector('script[src="https://js.puter.com/v2/"]');
-      if (existingScript) {
-        document.head.removeChild(existingScript);
-      }
-    };
+    // Initialize Puter.js service for admin AI
+    puterService.initialize().catch(error => {
+      console.error('Failed to initialize Puter.js in Admin:', error);
+    });
   }, []);
 
   const renderContent = () => {

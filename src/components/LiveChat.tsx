@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { puterService } from '@/utils/puterService';
 
 interface Message {
   id: number;
@@ -45,50 +46,16 @@ const LiveChat = () => {
   const [chatbotSettings] = useLocalStorage<ChatbotSettings>('chatbotSettings', defaultChatbotSettings);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Puter.js
+  // Initialize Puter.js using centralized service
   useEffect(() => {
     if (!chatbotSettings.enabled) return;
 
-    const initializePuter = async () => {
+    const initializeChat = async () => {
       try {
-        // Load Puter.js script if not already loaded
-        if (!document.querySelector('script[src="https://js.puter.com/v2/"]')) {
-          const script = document.createElement('script');
-          script.src = 'https://js.puter.com/v2/';
-          script.async = true;
-          document.head.appendChild(script);
-          
-          script.onload = () => {
-            console.log('Puter.js script loaded');
-            checkPuterAvailability();
-          };
-          
-          script.onerror = () => {
-            console.error('Failed to load Puter.js script');
-          };
-        } else {
-          checkPuterAvailability();
-        }
-      } catch (error) {
-        console.error('Error initializing Puter.js:', error);
-      }
-    };
+        const isReady = await puterService.initialize();
+        setIsPuterReady(isReady);
 
-    const checkPuterAvailability = async () => {
-      const maxAttempts = 20;
-      let attempts = 0;
-      
-      while ((!window.puter || !window.puter.ai) && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        attempts++;
-      }
-      
-      if (window.puter && window.puter.ai) {
-        console.log('Puter.js is ready');
-        setIsPuterReady(true);
-        
-        // Add welcome message
-        if (chatbotSettings.welcomeMessage && messages.length === 0) {
+        if (isReady && chatbotSettings.welcomeMessage && messages.length === 0) {
           const welcomeMessage: Message = {
             id: Date.now(),
             text: chatbotSettings.welcomeMessage,
@@ -97,13 +64,13 @@ const LiveChat = () => {
           };
           setMessages([welcomeMessage]);
         }
-      } else {
-        console.error('Puter.js failed to initialize');
+      } catch (error) {
+        console.error('Failed to initialize Puter.js in LiveChat:', error);
       }
     };
 
-    initializePuter();
-  }, [chatbotSettings.enabled, chatbotSettings.welcomeMessage]);
+    initializeChat();
+  }, [chatbotSettings.enabled, chatbotSettings.welcomeMessage, messages.length]);
 
   useEffect(() => {
     // Scroll to the bottom when messages change
@@ -176,10 +143,9 @@ User question: ${inputMessage}
 
 Please provide a helpful response about SWENLOG's logistics services.`;
 
-      const response = await window.puter.ai.chat(enhancedContext, {
-        testMode: true,
-        model: 'gpt-4o-mini',
-        stream: false
+      const response = await puterService.makeAIRequest(enhancedContext, {
+        temperature: 0.7,
+        maxTokens: 1000
       });
       const responseText = extractTextFromResponse(response);
       

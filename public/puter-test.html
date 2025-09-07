@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puter.js Test</title>
+</head>
+<body>
+    <h1>Puter.js AI Test</h1>
+    <div>
+        <input type="text" id="promptInput" placeholder="Enter your prompt..." style="width: 300px; padding: 8px;">
+        <button onclick="testAI()" style="padding: 8px 16px;">Test AI</button>
+    </div>
+    <div id="output" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc; min-height: 100px;"></div>
+
+    <script>
+        let isPuterReady = false;
+
+        // Load Puter.js script
+        const script = document.createElement('script');
+        script.src = 'https://js.puter.com/v2/';
+        script.onload = () => {
+            console.log('Puter.js script loaded');
+            checkPuterReady();
+        };
+        script.onerror = () => {
+            console.error('Failed to load Puter.js script');
+            document.getElementById('output').textContent = 'Failed to load Puter.js script';
+        };
+        document.head.appendChild(script);
+
+        function checkPuterReady() {
+            let attempts = 0;
+            const maxAttempts = 50;
+
+            const checkInterval = setInterval(() => {
+                attempts++;
+                console.log(`Checking Puter.js availability (attempt ${attempts})...`);
+
+                if (window.puter && window.puter.ai) {
+                    isPuterReady = true;
+                    clearInterval(checkInterval);
+                    console.log('Puter.js is ready!');
+                    document.getElementById('output').textContent = 'Puter.js is ready! You can now test AI.';
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    console.error('Puter.js failed to initialize');
+                    document.getElementById('output').textContent = 'Puter.js failed to initialize after ' + maxAttempts + ' attempts.';
+                }
+            }, 100);
+        }
+
+        async function testAI() {
+            const prompt = document.getElementById('promptInput').value.trim();
+            if (!prompt) {
+                alert('Please enter a prompt');
+                return;
+            }
+
+            if (!isPuterReady) {
+                document.getElementById('output').textContent = 'Puter.js is not ready yet. Please wait...';
+                return;
+            }
+
+            document.getElementById('output').textContent = 'Testing AI...';
+
+            try {
+                console.log('Sending test prompt:', prompt);
+                const response = await window.puter.ai.chat(prompt, {
+                    temperature: 0.7,
+                    max_tokens: 1000,
+                    model: 'gpt-4o-mini'
+                });
+
+                console.log('AI Response:', response);
+                document.getElementById('output').textContent = 'Response: ' + JSON.stringify(response, null, 2);
+            } catch (error) {
+                console.error('AI test failed:', error);
+                document.getElementById('output').textContent = 'AI test failed: ' + error.message;
+            }
+        }
+
+        // Log all console messages to help with debugging
+        const originalLog = console.log;
+        const originalError = console.error;
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const output = document.getElementById('output');
+            if (output && args.length > 0) {
+                const message = args.map(arg =>
+                    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                ).join(' ');
+                output.textContent += '\n[LOG] ' + message;
+            }
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const output = document.getElementById('output');
+            if (output && args.length > 0) {
+                const message = args.map(arg =>
+                    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+                ).join(' ');
+                output.textContent += '\n[ERROR] ' + message;
+            }
+        };
+    </script>
+</body>
+</html>

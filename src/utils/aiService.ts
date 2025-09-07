@@ -1,6 +1,8 @@
 
 
 // Unified AI Service using Puter.js
+import { puterService } from './puterService';
+
 interface TrainingData {
   id: string;
   question: string;
@@ -34,7 +36,7 @@ class UnifiedAIService {
 
   private constructor() {
     this.loadTrainingData();
-    this.initializePuter();
+    this.initializeService();
   }
 
   static getInstance(): UnifiedAIService {
@@ -55,20 +57,17 @@ class UnifiedAIService {
     }
   }
 
-  private async initializePuter() {
-    let attempts = 0;
-    const maxAttempts = 50; // Reduced from 100 for faster initialization
-
-    while ((!window.puter || !window.puter.ai) && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-
-    this.isReady = !!(window.puter && window.puter.ai);
-    if (!this.isReady) {
-      console.warn('Puter.js AI service not available after initialization attempts');
-    } else {
-      console.log('Puter.js AI service initialized successfully');
+  private async initializeService() {
+    try {
+      const ready = await puterService.initialize();
+      this.isReady = ready;
+      if (ready) {
+        console.log('AI Service initialized successfully');
+      } else {
+        console.warn('AI Service not available after initialization attempts');
+      }
+    } catch (error) {
+      console.error('Error initializing AI service:', error);
     }
   }
 
@@ -150,7 +149,10 @@ class UnifiedAIService {
         stream: false
       };
 
-      const response = await window.puter.ai.chat(contextualPrompt, puterOptions);
+      const response = await puterService.makeAIRequest(contextualPrompt, {
+        temperature: 0.7,
+        maxTokens: 1000
+      });
 
       console.log('AI Response:', response);
 
@@ -158,28 +160,20 @@ class UnifiedAIService {
       let responseText = this.getFallbackResponse(prompt);
 
       if (response) {
-        // Try different response formats
-        if (response.message?.content) {
-          if (Array.isArray(response.message.content)) {
-            responseText = response.message.content
-              .filter(item => item.type === 'text')
-              .map(item => item.text)
-              .join('');
-          } else if (typeof response.message.content === 'string') {
-            responseText = response.message.content;
-          }
-        } else if (response.choices && response.choices[0]?.message?.content) {
-          responseText = response.choices[0].message.content;
-        } else if (response.content) {
-          responseText = response.content;
-        } else if (typeof response === 'string') {
+        if (typeof response === 'string') {
           responseText = response;
         } else if (response.text) {
           responseText = response.text;
-        } else if (response.toString && typeof response.toString === 'function') {
-          const stringified = response.toString();
-          if (stringified && stringified !== '[object Object]') {
-            responseText = stringified;
+        } else if (response.content) {
+          responseText = String(response.content);
+        } else if (response.message?.content) {
+          if (typeof response.message.content === 'string') {
+            responseText = response.message.content;
+          } else if (Array.isArray(response.message.content)) {
+            responseText = response.message.content
+              .filter((item: any) => item.type === 'text')
+              .map((item: any) => item.text)
+              .join('');
           }
         }
       }
