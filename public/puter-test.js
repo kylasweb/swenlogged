@@ -12,42 +12,58 @@ async function testPuterAI() {
 
   console.log('Puter.js is available, testing AI chat...');
 
-  try {
-    const testPrompt = 'What is shipping?';
-    console.log('Sending test prompt:', testPrompt);
+    try {
+      const testPrompt = 'What is shipping?';
+      console.log('Sending test prompt:', testPrompt);
 
-    const response = await window.puter.ai.chat(testPrompt, {
-      testMode: true,
-      model: 'gpt-4o-mini'
-    });
+      const response = await window.puter.ai.chat(testPrompt, {
+        testMode: true,
+        model: 'gpt-4o-mini'
+      });
 
-    console.log('Raw response:', response);
+      console.log('Raw response:', response);
 
-    // Try to extract text from response
-    let responseText = 'No response text found';
+      // Defensive extraction (JS-friendly version of centralized parser)
+      let responseText = 'No response text found';
 
-    if (response) {
-      if (response.message?.content) {
-        if (Array.isArray(response.message.content)) {
-          responseText = response.message.content
-            .filter(item => item && typeof item === 'object' && item.type === 'text')
-            .map(item => item && typeof item === 'object' && item.text ? item.text : '')
-            .join('');
-        } else if (typeof response.message.content === 'string') {
-          responseText = response.message.content;
+      if (response) {
+        try {
+          // OpenAI-like choices
+          if (Array.isArray(response.choices) && response.choices[0] && response.choices[0].message && response.choices[0].message.content) {
+            const content = response.choices[0].message.content;
+            if (typeof content === 'string') responseText = content;
+            else if (Array.isArray(content)) {
+              responseText = (content || [])
+                .filter(item => item && typeof item === 'object' && 'type' in item && item.type === 'text')
+                .map(item => item && typeof item === 'object' && 'text' in item ? item.text : '')
+                .join(' ')
+                .trim();
+            }
+          }
+
+          // Puter.js streaming parts
+          if ((!responseText || responseText === 'No response text found') && response.message && response.message.content) {
+            const content = response.message.content;
+            if (typeof content === 'string') responseText = content;
+            else if (Array.isArray(content)) {
+              responseText = (content || [])
+                .filter(item => item && typeof item === 'object' && 'type' in item && item.type === 'text')
+                .map(item => item && typeof item === 'object' && 'text' in item ? item.text : '')
+                .join(' ')
+                .trim();
+            }
+          }
+
+          // Top-level fallbacks
+          if ((!responseText || responseText === 'No response text found') && response.content) responseText = response.content;
+          if ((!responseText || responseText === 'No response text found') && response.text) responseText = response.text;
+          if ((!responseText || responseText === 'No response text found') && typeof response === 'string') responseText = response;
+        } catch (err) {
+          console.error('Error parsing AI response in puter-test.js:', err);
         }
-      } else if (response.choices && response.choices[0]?.message?.content) {
-        responseText = response.choices[0].message.content;
-      } else if (response.content) {
-        responseText = response.content;
-      } else if (typeof response === 'string') {
-        responseText = response;
-      } else if (response.text) {
-        responseText = response.text;
       }
-    }
 
-    console.log('Extracted response text:', responseText);
+      console.log('Extracted response text:', responseText);
 
     // Check if it's lorem ipsum
     const lowerResponse = responseText.toLowerCase();

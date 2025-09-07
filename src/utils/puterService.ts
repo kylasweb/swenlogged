@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { extractTextFromPuterResponse } from './aiResponseParser';
 
 interface PuterConfig {
     isReady: boolean;
@@ -53,13 +54,11 @@ class PuterService {
                 await loadPromise;
             }
 
-            // Wait for Puter.js to be fully available
-            let attempts = 0;
+            // Wait for Puter.js to be fully available (poll with a fixed max attempts)
             const maxAttempts = 50;
-
-            while ((!window.puter || !window.puter.ai) && attempts < maxAttempts) {
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                if (window.puter && window.puter.ai) break;
                 await new Promise(resolve => setTimeout(resolve, 100));
-                attempts++;
             }
 
             if (window.puter && window.puter.ai) {
@@ -83,41 +82,32 @@ class PuterService {
         return this.isReady && !!(window.puter && window.puter.ai);
     }
 
-    async makeAIRequest(prompt: string, options?: { temperature?: number; maxTokens?: number }): Promise<string> {
+    async makeAIRequest(prompt: string, options?: { temperature?: number; maxTokens?: number; rawResponse?: boolean; stream?: boolean }): Promise<unknown> {
         if (!this.isServiceReady()) {
             throw new Error('Puter.js AI service is not ready');
         }
 
         try {
-            const response = await window.puter.ai.chat(prompt, {
-                temperature: options?.temperature || 0.7,
-                maxTokens: options?.maxTokens || 1000,
-                model: 'gpt-4o-mini'
-            });
+            // Map camelCase options to SDK expected keys (e.g., maxTokens -> max_tokens)
+            const apiOptions: Record<string, unknown> = {
+                model: 'gpt-4o-mini',
+                stream: options?.stream ?? false,
+                temperature: options?.temperature ?? 0.7,
+            };
 
-            // Handle different response formats
-            if (typeof response === 'string') {
-                return response;
+            if (options?.maxTokens !== undefined) apiOptions['max_tokens'] = options.maxTokens;
+
+            const responseRaw = await window.puter.ai.chat(prompt as unknown as string, apiOptions as unknown as Record<string, unknown>);
+
+            // If caller wants raw response (for tool_calls / function-calling workflows), return it
+            if (options?.rawResponse) return responseRaw;
+
+            // Otherwise, return extracted text for convenience
+            try {
+                return extractTextFromPuterResponse(responseRaw as unknown);
+            } catch (err) {
+                return String(responseRaw);
             }
-
-            if (response && typeof response === 'object') {
-                if ('message' in response && response.message) {
-                    if (typeof response.message === 'string') {
-                        return response.message;
-                    }
-                    if (response.message.content) {
-                        return String(response.message.content);
-                    }
-                }
-                if ('text' in response) {
-                    return String(response.text);
-                }
-                if ('content' in response) {
-                    return String(response.content);
-                }
-            }
-
-            return String(response);
         } catch (error) {
             console.error('Puter.js AI request failed:', error);
 

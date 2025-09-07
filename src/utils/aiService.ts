@@ -2,6 +2,7 @@
 
 // Unified AI Service using Puter.js
 import { puterService } from './puterService';
+import { extractTextFromPuterResponse } from './aiResponseParser';
 
 interface TrainingData {
   id: string;
@@ -83,20 +84,15 @@ class UnifiedAIService {
   async waitForReady(): Promise<boolean> {
     if (this.isReady) return true;
 
-    let attempts = 0;
-    const maxAttempts = 50;
-
-    while (!this.isReady && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-
-      if (window.puter && window.puter.ai) {
-        this.isReady = true;
-        return true;
-      }
+    // Delegate initialization and readiness checks to the centralized puterService
+    try {
+      await puterService.initialize();
+      this.isReady = puterService.isServiceReady();
+      return this.isReady;
+    } catch (err) {
+      console.error('Error waiting for AI service readiness:', err);
+      return false;
     }
-
-    return false;
   }
 
   private createContextualPrompt(userPrompt: string, context?: string, systemPrompt?: string): string {
@@ -150,14 +146,8 @@ class UnifiedAIService {
 
       console.log('AI Query:', { prompt, options, contextualPrompt });
 
-      // Call Puter AI service using the correct API format
-      // Puter.js API: puter.ai.chat(message, options)
-      const puterOptions = {
-        testMode: options.testMode || true, // Always use test mode as requested
-        model: options.model || 'gpt-4o-mini',
-        stream: false
-      };
-
+      // Call Puter AI service using centralized puterService
+      // pass through options as needed; puterService maps camelCase keys to API keys
       const response = await puterService.makeAIRequest(contextualPrompt, {
         temperature: 0.7,
         maxTokens: 1000
@@ -169,25 +159,8 @@ class UnifiedAIService {
       let responseText = this.getFallbackResponse(prompt);
 
       if (response) {
-        if (typeof response === 'string') {
-          responseText = response;
-        } else if (typeof response === 'object' && response !== null) {
-          const responseObj = response as FlexibleResponse;
-          if (responseObj.text) {
-            responseText = responseObj.text;
-          } else if (responseObj.content) {
-            responseText = String(responseObj.content);
-          } else if (responseObj.message?.content) {
-            if (typeof responseObj.message.content === 'string') {
-              responseText = responseObj.message.content;
-            } else if (Array.isArray(responseObj.message.content)) {
-              responseText = responseObj.message.content
-                .filter((item: { type: string; text: string }) => item.type === 'text')
-                .map((item: { type: string; text: string }) => item.text)
-                .join('');
-            }
-          }
-        }
+        // Use centralized, defensive parser to extract usable text
+        responseText = extractTextFromPuterResponse(response) || responseText;
       }
 
       // Check if response is lorem ipsum or generic - if so, use fallback

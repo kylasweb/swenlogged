@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from 'react';
 import { Bot, Plus, Edit, Trash2, Save, X } from 'lucide-react';
+import { extractTextFromPuterResponse } from '@/utils/aiResponseParser';
+import { puterService } from '@/utils/puterService';
 
 interface TrainingData {
   id: string;
@@ -39,18 +41,16 @@ const ChatbotManager = () => {
       setTrainingData(JSON.parse(savedData));
     }
 
-    // Load Puter.js script
-    const script = document.createElement('script');
-    script.src = 'https://js.puter.com/v2/';
-    script.async = true;
-    document.head.appendChild(script);
-
-    return () => {
-      const existingScript = document.head.querySelector('script[src="https://js.puter.com/v2/"]');
-      if (existingScript) {
-        document.head.removeChild(existingScript);
+    // Initialize centralized Puter service (it will load the script if needed)
+    (async () => {
+      try {
+        await puterService.initialize();
+      } catch (err) {
+        // initialization errors are logged inside the service
       }
-    };
+    })();
+
+    // no manual script cleanup here; puterService manages script lifecycle
   }, []);
 
   const saveTrainingData = (data: TrainingData[]) => {
@@ -98,12 +98,10 @@ const ChatbotManager = () => {
       let attempts = 0;
       const maxAttempts = 50;
       
-      while ((!window.puter || !window.puter.ai) && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
+  // Ensure Puter service is initialized and ready
+  await puterService.initialize();
 
-      if (window.puter && window.puter.ai) {
+  if (puterService.isServiceReady()) {
         // Create context from training data
         const trainingContext = trainingData.map(entry => 
           `Q: ${entry.question}\nA: ${entry.answer}\nCategory: ${entry.category}\nKeywords: ${entry.keywords.join(', ')}`
@@ -117,15 +115,16 @@ const ChatbotManager = () => {
         Based on this training data, please answer the following question:
         ${testQuestion}`;
 
-        const response = await window.puter.ai.chat(prompt, {
-          testMode: true,
-          model: 'gpt-4o-mini',
-          stream: false
-        });
-        
+        // Use centralized makeAIRequest which returns a safe string by default
+        const aiResult = await puterService.makeAIRequest(prompt, { stream: false });
+
+        const resultText = typeof aiResult === 'string'
+          ? aiResult
+          : extractTextFromPuterResponse(aiResult) || 'No response received';
+
         const result: TestResult = {
           question: testQuestion,
-          response: extractResponseText(response) || 'No response received',
+          response: resultText,
           timestamp: new Date()
         };
 
@@ -147,35 +146,7 @@ const ChatbotManager = () => {
     }
   };
 
-  const extractResponseText = (response: unknown): string => {
-    if (!response) return '';
-
-    try {
-      // Handle Puter.js response format
-      if (response && typeof response === 'object' && 'message' in response) {
-        const responseObj = response as { message?: { content?: unknown } };
-        if (responseObj.message?.content) {
-          if (Array.isArray(responseObj.message.content)) {
-            return responseObj.message.content
-              .filter((item: unknown) => typeof item === 'object' && item !== null && 'type' in item && (item as { type: string }).type === 'text')
-              .map((item: unknown) => typeof item === 'object' && item !== null && 'text' in item ? (item as { text: string }).text : '')
-              .join(' ');
-          }
-          return String(responseObj.message.content);
-        }
-      }
-
-      // Fallback to string conversion
-      if (typeof response === 'string') {
-        return response;
-      }
-
-      return response?.toString() || '';
-    } catch (error) {
-      console.error('Error extracting response text:', error);
-      return '';
-    }
-  };
+  // ...existing code...
 
   const categories = ['general', 'shipping', 'logistics', 'pricing', 'support', 'customs', 'tracking'];
 

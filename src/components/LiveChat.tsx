@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { puterService } from '@/utils/puterService';
+import { extractTextFromPuterResponse } from '@/utils/aiResponseParser';
 
 interface Message {
   id: number;
@@ -80,38 +81,9 @@ const LiveChat = () => {
   }, [messages.length]);
 
   const extractTextFromResponse = (response: unknown): string => {
+    // Log the full response for debugging (helps diagnose unexpected shapes in prod)
     console.log('Full AI response:', response);
-
-    if (!response) {
-      return 'I apologize, but I did not receive a response. Please try again.';
-    }
-
-    try {
-      // Handle Puter.js response format
-      if (response && typeof response === 'object' && 'message' in response) {
-        const responseObj = response as { message?: { content?: unknown } };
-        if (responseObj.message?.content) {
-          if (Array.isArray(responseObj.message.content)) {
-            const textContent = responseObj.message.content
-              .filter((item: unknown) => typeof item === 'object' && item !== null && 'type' in item && (item as { type: string }).type === 'text')
-              .map((item: unknown) => typeof item === 'object' && item !== null && 'text' in item ? (item as { text: string }).text : '')
-              .join(' ');
-            return textContent || 'I apologize, but I could not process the response properly.';
-          }
-          return String(responseObj.message.content);
-        }
-      }
-
-      // Fallback to string conversion
-      if (typeof response === 'string') {
-        return response;
-      }
-
-      return 'I apologize, but I could not process the response properly.';
-    } catch (error) {
-      console.error('Error extracting text from response:', error);
-      return 'I apologize, but there was an error processing the response.';
-    }
+    return extractTextFromPuterResponse(response);
   };
 
   const sendMessage = async () => {
