@@ -66,18 +66,20 @@ const SupplyChainRiskAssessment = () => {
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const runSupplierAI = useAICachedAction(async () => {
-    if (!supplierName || !location || !industry) return null;
-    const customList = customRisks.split('\n').map(r => r.trim()).filter(Boolean);
-    return supplierRiskAssessmentPrompt({
-      supplier: supplierName,
-      location,
-      industry,
-      selectedRisks,
-      customRisks: customList
-    });
-  }, [supplierName, location, industry, selectedRisks, customRisks], {
-    cacheKey: `supplier-risk:${supplierName}:${location}:${industry}:${selectedRisks.sort().join(',')}:${customRisks}`
+  const { run: runSupplierAI } = useAICachedAction<AISupplierRiskResponse>({
+    cacheKey: `supplier-risk:${supplierName}:${location}:${industry}:${selectedRisks.sort().join(',')}:${customRisks}`,
+    buildPrompt: () => {
+      if (!supplierName || !location || !industry) return '';
+      const customList = customRisks.split('\n').map(r => r.trim()).filter(Boolean);
+      return supplierRiskAssessmentPrompt({
+        supplier: supplierName,
+        location,
+        industry,
+        selectedRisks,
+        customRisks: customList
+      });
+    },
+    parseShape: () => null
   });
 
   const riskCategories = [
@@ -253,7 +255,7 @@ const SupplyChainRiskAssessment = () => {
     if (aiEnabled) {
       setAiLoading(true);
       try {
-        const aiData = await runSupplierAI();
+  const aiData = await runSupplierAI();
         if (aiData && typeof aiData === 'object') {
           // Validate minimal shape
             const aiTyped = aiData as AISupplierRiskResponse;

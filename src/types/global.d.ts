@@ -22,6 +22,13 @@ declare global {
           }>;
         }>;
       };
+      auth?: {
+        getUser?: () => Promise<unknown>;
+        login?: (params: { email: string; password: string }) => Promise<{ token?: string }>;
+        useToken?: (token: string) => Promise<void> | void;
+        logout?: () => Promise<void>;
+        currentSession?: () => Promise<{ token?: string } | null>;
+      };
     };
   }
 }

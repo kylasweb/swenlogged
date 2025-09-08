@@ -59,26 +59,28 @@ const ComplianceCheckerPage: React.FC = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
 
-  const runComplianceAI = useAICachedAction(async () => {
-    if (!shipmentData.originCountry || !shipmentData.destinationCountry || !shipmentData.productCategory) return null;
-    const value = parseFloat(shipmentData.productValue || '0') || 0;
-    return complianceGapAnalysisPrompt({
-      origin: shipmentData.originCountry,
-      destination: shipmentData.destinationCountry,
-      productCategory: shipmentData.productCategory,
-      valueUSD: value,
-      description: shipmentData.productDescription,
-      specialRequirements: shipmentData.specialRequirements
-    });
-  }, [shipmentData.originCountry, shipmentData.destinationCountry, shipmentData.productCategory, shipmentData.productValue, shipmentData.productDescription, shipmentData.specialRequirements], {
-    cacheKey: `compliance:${shipmentData.originCountry}:${shipmentData.destinationCountry}:${shipmentData.productCategory}:${shipmentData.productValue}`
+  const { run: runComplianceAI } = useAICachedAction<AIComplianceRaw>({
+    cacheKey: `compliance:${shipmentData.originCountry}:${shipmentData.destinationCountry}:${shipmentData.productCategory}:${shipmentData.productValue}`,
+    buildPrompt: () => {
+      if (!shipmentData.originCountry || !shipmentData.destinationCountry || !shipmentData.productCategory) return '';
+      const value = parseFloat(shipmentData.productValue || '0') || 0;
+      return complianceGapAnalysisPrompt({
+        origin: shipmentData.originCountry,
+        destination: shipmentData.destinationCountry,
+        productCategory: shipmentData.productCategory,
+        valueUSD: value,
+        description: shipmentData.productDescription,
+        specialRequirements: shipmentData.specialRequirements
+      });
+    },
+    parseShape: () => null
   });
 
   const checkCompliance = async () => {
     setIsChecking(true);
     if (aiEnabled) {
       try {
-        const aiData = await runComplianceAI();
+  const aiData = await runComplianceAI();
         if (aiData && typeof aiData === 'object') {
           const raw = aiData as AIComplianceRaw;
           const mapped: ComplianceResult = {

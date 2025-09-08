@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { extractTextFromPuterResponse } from './aiResponseParser';
+import { restorePuterSession } from '@/utils/puterSession';
 
 interface PuterConfig {
     isReady: boolean;
@@ -72,6 +73,8 @@ class PuterService {
                 if (window.puter && window.puter.ai) {
                     this.isReady = true;
                     this.lastReadyCheck = Date.now();
+                    // Attempt silent session restore (non-blocking)
+                    restorePuterSession().catch(() => {/* ignore */ });
                     this.notifyListeners(true);
                     return true;
                 }

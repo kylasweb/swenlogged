@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Save, Settings, Zap, Globe, Database, Users, MessageSquare, BarChart3, Shield, Wrench, Check, X } from "lucide-react";
+import { Plus, Edit, Save, Settings, Zap, Globe, Database, Users, MessageSquare, BarChart3, Shield, Wrench, Check, X, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { FEATURE_KEYS } from '@/constants/featureKeys';
 import { useToast } from "@/hooks/use-toast";
 
 interface FeatureToggle {
@@ -21,7 +22,7 @@ interface FeatureToggle {
   category: 'main' | 'micro' | 'macro';
   priority: number;
   dependencies?: string[];
-  custom_fields?: Record<string, any>;
+  custom_fields?: FeatureCustomFields;
   created_at: string;
   updated_at: string;
 }
@@ -33,35 +34,41 @@ interface CustomField {
   required?: boolean;
 }
 
+interface FeatureCustomFields {
+  __schema?: CustomField[];
+  // Additional dynamic values indexed by field name
+  [key: string]: unknown;
+}
+
 // Predefined features organized by category
 const predefinedFeatures = {
   main: [
-    { key: 'cms_system', name: 'Content Management System', description: 'Full CMS with page builder and content management', icon: Globe },
-    { key: 'crm_system', name: 'Customer Relationship Management', description: 'Complete CRM with opportunities, activities, and reports', icon: Users },
-    { key: 'hrm_system', name: 'Human Resource Management', description: 'HR system with departments, leave management, and performance tracking', icon: Users },
-    { key: 'whatsapp_integration', name: 'WhatsApp Business Integration', description: 'WhatsApp Web integration for customer communication', icon: MessageSquare },
-    { key: 'ai_assistant', name: 'AI Assistant', description: 'AI-powered assistant for customer support and guidance', icon: Zap },
+    { key: FEATURE_KEYS.CMS_SYSTEM, name: 'Content Management System', description: 'Full CMS with page builder and content management', icon: Globe },
+    { key: FEATURE_KEYS.CRM_SYSTEM, name: 'Customer Relationship Management', description: 'Complete CRM with opportunities, activities, and reports', icon: Users },
+    { key: FEATURE_KEYS.HRM_SYSTEM, name: 'Human Resource Management', description: 'HR system with departments, leave management, and performance tracking', icon: Users },
+    { key: FEATURE_KEYS.WHATSAPP_INTEGRATION, name: 'WhatsApp Business Integration', description: 'WhatsApp Web integration for customer communication', icon: MessageSquare },
+    { key: FEATURE_KEYS.AI_ASSISTANT, name: 'AI Assistant', description: 'AI-powered assistant for customer support and guidance', icon: Zap },
   ],
   micro: [
-    { key: 'live_chat', name: 'Live Chat Widget', description: 'Real-time customer support chat widget', icon: MessageSquare },
-    { key: 'quote_management', name: 'Quote Management', description: 'Generate and manage customer quotes', icon: BarChart3 },
-    { key: 'media_library', name: 'Advanced Media Manager', description: 'Upload and organize media files with categories', icon: Database },
-    { key: 'forms_builder', name: 'Dynamic Forms Builder', description: 'Create custom forms with drag-and-drop builder', icon: Wrench },
-    { key: 'route_optimizer', name: 'Route Optimization Tools', description: 'Logistics route planning and optimization', icon: Globe },
-    { key: 'document_scanner', name: 'Document Scanner', description: 'OCR-powered document scanning and processing', icon: Database },
-    { key: 'marine_traffic', name: 'Marine Traffic Tracker', description: 'Real-time vessel tracking and port information', icon: Globe },
-    { key: 'freight_calculator', name: 'Freight Calculator', description: 'Calculate shipping costs and delivery times', icon: BarChart3 },
-    { key: 'container_optimizer', name: 'Container Load Optimizer', description: 'Optimize container loading and space utilization', icon: Wrench },
+    { key: FEATURE_KEYS.LIVE_CHAT, name: 'Live Chat Widget', description: 'Real-time customer support chat widget', icon: MessageSquare },
+    { key: FEATURE_KEYS.QUOTE_MANAGEMENT, name: 'Quote Management', description: 'Generate and manage customer quotes', icon: BarChart3 },
+    { key: FEATURE_KEYS.MEDIA_LIBRARY, name: 'Advanced Media Manager', description: 'Upload and organize media files with categories', icon: Database },
+    { key: FEATURE_KEYS.FORMS_BUILDER, name: 'Dynamic Forms Builder', description: 'Create custom forms with drag-and-drop builder', icon: Wrench },
+    { key: FEATURE_KEYS.ROUTE_OPTIMIZER, name: 'Route Optimization Tools', description: 'Logistics route planning and optimization', icon: Globe },
+    { key: FEATURE_KEYS.DOCUMENT_SCANNER, name: 'Document Scanner', description: 'OCR-powered document scanning and processing', icon: Database },
+    { key: FEATURE_KEYS.MARINE_TRAFFIC, name: 'Marine Traffic Tracker', description: 'Real-time vessel tracking and port information', icon: Globe },
+    { key: FEATURE_KEYS.FREIGHT_CALCULATOR, name: 'Freight Calculator', description: 'Calculate shipping costs and delivery times', icon: BarChart3 },
+    { key: FEATURE_KEYS.CONTAINER_OPTIMIZER, name: 'Container Load Optimizer', description: 'Optimize container loading and space utilization', icon: Wrench },
   ],
   macro: [
-    { key: 'multi_tenant', name: 'Multi-Tenant Architecture', description: 'Support for multiple organizations/tenants', icon: Users },
-    { key: 'api_gateway', name: 'API Gateway & Integration Hub', description: 'Centralized API management and third-party integrations', icon: Settings },
-    { key: 'advanced_analytics', name: 'Advanced Analytics Engine', description: 'Business intelligence and advanced reporting', icon: BarChart3 },
-    { key: 'security_framework', name: 'Enterprise Security Framework', description: 'Advanced security features and audit trails', icon: Shield },
-    { key: 'workflow_automation', name: 'Workflow Automation Engine', description: 'Automated business processes and workflows', icon: Zap },
-    { key: 'notification_system', name: 'Multi-Channel Notifications', description: 'Email, SMS, push notifications, and webhooks', icon: MessageSquare },
-    { key: 'backup_recovery', name: 'Backup & Recovery System', description: 'Automated backups and disaster recovery', icon: Database },
-    { key: 'performance_monitoring', name: 'Performance Monitoring', description: 'Real-time application performance monitoring', icon: BarChart3 },
+    { key: FEATURE_KEYS.MULTI_TENANT, name: 'Multi-Tenant Architecture', description: 'Support for multiple organizations/tenants', icon: Users },
+    { key: FEATURE_KEYS.API_GATEWAY, name: 'API Gateway & Integration Hub', description: 'Centralized API management and third-party integrations', icon: Settings },
+    { key: FEATURE_KEYS.ADVANCED_ANALYTICS, name: 'Advanced Analytics Engine', description: 'Business intelligence and advanced reporting', icon: BarChart3 },
+    { key: FEATURE_KEYS.SECURITY_FRAMEWORK, name: 'Enterprise Security Framework', description: 'Advanced security features and audit trails', icon: Shield },
+    { key: FEATURE_KEYS.WORKFLOW_AUTOMATION, name: 'Workflow Automation Engine', description: 'Automated business processes and workflows', icon: Zap },
+    { key: FEATURE_KEYS.NOTIFICATION_SYSTEM, name: 'Multi-Channel Notifications', description: 'Email, SMS, push notifications, and webhooks', icon: MessageSquare },
+    { key: FEATURE_KEYS.BACKUP_RECOVERY, name: 'Backup & Recovery System', description: 'Automated backups and disaster recovery', icon: Database },
+    { key: FEATURE_KEYS.PERFORMANCE_MONITORING, name: 'Performance Monitoring', description: 'Real-time application performance monitoring', icon: BarChart3 },
   ]
 };
 
@@ -82,14 +89,13 @@ const FeatureManager = () => {
     category: 'main' as 'main' | 'micro' | 'macro',
     priority: 1,
     dependencies: [] as string[],
-    custom_fields: {} as Record<string, any>
+    custom_fields: {} as FeatureCustomFields
   });
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    fetchFeatures();
-  }, []);
+  const aliasMap = useMemo(() => ({ puter_ai_assistant: 'ai_assistant' }), []);
 
-  const fetchFeatures = async () => {
+  const fetchFeatures = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('feature_toggles')
@@ -98,12 +104,17 @@ const FeatureManager = () => {
 
       if (error) throw error;
       // Transform data to include default values for new fields
-      const transformedData = (data || []).map(feature => ({
-        ...feature,
-        category: feature.category || 'main',
-        priority: feature.priority || 1,
-        dependencies: feature.dependencies || []
-      })) as FeatureToggle[];
+      const transformedData = (data || []).map(raw => {
+        const feature = raw as FeatureToggle;
+        const key = aliasMap[feature.feature_key] || feature.feature_key;
+        return {
+          ...feature,
+          feature_key: key,
+          category: feature.category || 'main',
+          priority: feature.priority || 1,
+          dependencies: feature.dependencies || []
+        } as FeatureToggle;
+      });
       setFeatures(transformedData);
     } catch (error) {
       console.error('Error fetching features:', error);
@@ -115,9 +126,14 @@ const FeatureManager = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast, aliasMap]);
+
+  useEffect(() => {
+    fetchFeatures();
+  }, [fetchFeatures]);
 
   const handleToggleFeature = async (id: string, currentValue: boolean) => {
+    setTogglingIds(prev => new Set(prev).add(id));
     try {
       const { error } = await supabase
         .from('feature_toggles')
@@ -126,29 +142,57 @@ const FeatureManager = () => {
 
       if (error) throw error;
 
-      setFeatures(features.map(feature => 
+      setFeatures(prev => prev.map(feature => 
         feature.id === id ? { ...feature, is_enabled: !currentValue, updated_at: new Date().toISOString() } : feature
       ));
-      
-      // Refresh the page to apply feature changes
-      window.location.reload();
-      
       toast({
-        title: "Success",
+        title: 'Success',
         description: `Feature ${!currentValue ? 'enabled' : 'disabled'} successfully`,
       });
     } catch (error) {
       console.error('Error updating feature:', error);
       toast({
-        title: "Error",
-        description: "Failed to update feature",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to update feature',
+        variant: 'destructive',
+      });
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
       });
     }
   };
 
+  const validateFeature = (proposedKey: string) => {
+    if (!proposedKey.trim()) {
+      toast({ title: 'Validation Error', description: 'Feature key is required', variant: 'destructive' });
+      return false;
+    }
+    if (!/^[a-z0-9_]+$/.test(proposedKey)) {
+      toast({ title: 'Validation Error', description: 'Feature key must be lowercase alphanumeric with underscores', variant: 'destructive' });
+      return false;
+    }
+    const dup = features.find(f => f.feature_key === proposedKey && (!editingFeature || f.id !== editingFeature.id));
+    if (dup) {
+      toast({ title: 'Validation Error', description: 'Feature key already exists', variant: 'destructive' });
+      return false;
+    }
+    return true;
+  };
+
   const handleSaveFeature = async () => {
     try {
+      if (!validateFeature(formData.feature_key)) return;
+
+      // Build merged dependencies (dedupe)
+      const mergedDependencies = Array.from(new Set([...(formData.dependencies || []), ...selectedFunctions]));
+
+      // Persist custom field schema
+      const customFieldSchema = customFields.length ? { __schema: customFields } : {};
+      const mergedCustomFields = { ...formData.custom_fields, ...customFieldSchema };
+
       if (editingFeature) {
         const { error } = await supabase
           .from('feature_toggles')
@@ -158,8 +202,8 @@ const FeatureManager = () => {
             is_enabled: formData.is_enabled,
             category: formData.category,
             priority: formData.priority,
-            dependencies: [...formData.dependencies, ...selectedFunctions],
-            custom_fields: formData.custom_fields
+            dependencies: mergedDependencies,
+            custom_fields: mergedCustomFields
           })
           .eq('id', editingFeature.id);
 
@@ -173,8 +217,8 @@ const FeatureManager = () => {
           .from('feature_toggles')
           .insert([{
             ...formData,
-            dependencies: [...formData.dependencies, ...selectedFunctions],
-            custom_fields: formData.custom_fields
+            dependencies: mergedDependencies,
+            custom_fields: mergedCustomFields
           }]);
 
         if (error) throw error;
@@ -216,38 +260,38 @@ const FeatureManager = () => {
         ...predefinedFeatures.macro.map((f, idx) => ({ ...f, category: 'macro', priority: idx + 1 }))
       ];
 
-      for (const feature of allPredefined) {
-        const { data: existing } = await supabase
-          .from('feature_toggles')
-          .select('id')
-          .eq('feature_key', feature.key)
-          .single();
+      const keys = allPredefined.map(f => f.key);
+      const { data: existing, error: existingError } = await supabase
+        .from('feature_toggles')
+        .select('feature_key')
+        .in('feature_key', keys);
+      if (existingError) throw existingError;
+      const existingKeys = new Set((existing || []).map(e => e.feature_key));
+      const toInsert = allPredefined.filter(f => !existingKeys.has(f.key)).map(feature => ({
+        feature_key: feature.key,
+        description: feature.description,
+        is_enabled: feature.category === 'main',
+        category: feature.category,
+        priority: feature.priority,
+        dependencies: []
+      }));
 
-        if (!existing) {
-          await supabase
-            .from('feature_toggles')
-            .insert([{
-              feature_key: feature.key,
-              description: feature.description,
-              is_enabled: feature.category === 'main', // Enable main features by default
-              category: feature.category,
-              priority: feature.priority,
-              dependencies: []
-            }]);
-        }
+      if (toInsert.length) {
+        const { error: insertError } = await supabase.from('feature_toggles').insert(toInsert);
+        if (insertError) throw insertError;
       }
-      
+
       fetchFeatures();
       toast({
-        title: "Success",
-        description: "Predefined features initialized successfully",
+        title: 'Success',
+        description: toInsert.length ? 'Predefined features initialized successfully' : 'All predefined features already exist',
       });
     } catch (error) {
       console.error('Error initializing features:', error);
       toast({
-        title: "Error",
-        description: "Failed to initialize predefined features",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to initialize predefined features',
+        variant: 'destructive',
       });
     }
   };
@@ -263,8 +307,10 @@ const FeatureManager = () => {
       dependencies: feature.dependencies || [],
       custom_fields: feature.custom_fields || {}
     });
-    setSelectedFunctions([]);
-    setCustomFields([]);
+    setSelectedFunctions([]); // Reset selection each edit
+    // Load custom field schema if present
+  const schema = (feature.custom_fields && feature.custom_fields.__schema) || [];
+    setCustomFields(Array.isArray(schema) ? schema : []);
     setIsDialogOpen(true);
   };
 
@@ -614,12 +660,34 @@ const FeatureManager = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEditDialog(feature)}
+                          aria-label="Edit feature"
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            const confirmDelete = window.confirm('Delete this feature? This cannot be undone.');
+                            if (!confirmDelete) return;
+                            try {
+                              const { error } = await supabase.from('feature_toggles').delete().eq('id', feature.id);
+                              if (error) throw error;
+                              setFeatures(prev => prev.filter(f => f.id !== feature.id));
+                              toast({ title: 'Deleted', description: 'Feature removed' });
+                            } catch (err) {
+                              console.error('Delete failed', err);
+                              toast({ title: 'Error', description: 'Failed to delete feature', variant: 'destructive' });
+                            }
+                          }}
+                          aria-label="Delete feature"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                         <Switch
                           checked={feature.is_enabled}
                           onCheckedChange={() => handleToggleFeature(feature.id, feature.is_enabled)}
+                          disabled={togglingIds.has(feature.id)}
                         />
                       </div>
                     </CardHeader>

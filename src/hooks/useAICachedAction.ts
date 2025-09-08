@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { puterService } from '../utils/puterService';
 import { extractJson } from '../utils/aiJson';
+import { getAIFallback } from '@/data/aiFallbacks';
+import { pushAIDiagnostics } from '@/components/dev/aiDiagnosticsBus';
 
 interface UseAICachedActionOptions<TParsed> {
     cacheKey: string;
@@ -15,6 +17,7 @@ export function useAICachedAction<TParsed = unknown>(opts: UseAICachedActionOpti
     const [data, setData] = useState<TParsed | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [fromFallback, setFromFallback] = useState(false);
 
     // hydrate
     useEffect(() => {
@@ -24,24 +27,39 @@ export function useAICachedAction<TParsed = unknown>(opts: UseAICachedActionOpti
         } catch { /* ignore */ }
     }, [cacheKey]);
 
-    const run = useCallback(async () => {
+    const run = useCallback(async (): Promise<TParsed | null> => {
         setLoading(true);
+        setFromFallback(false);
         setError(null);
+        let parsed: TParsed | null = null;
         try {
             await puterService.ensureReady(4000);
             const prompt = buildPrompt();
+            if (!prompt) throw new Error('Empty prompt');
             const aiResp = await puterService.makeAIRequest(prompt, { temperature, maxTokens });
             const text = typeof aiResp === 'string' ? aiResp : (aiResp as { text?: string }).text || '';
-            const parsed = parseShape() || extractJson<TParsed>(text) || null;
+            parsed = parseShape() || extractJson<TParsed>(text) || null;
             if (!parsed) throw new Error('Parse failure');
             setData(parsed);
+            if (import.meta.env.DEV) pushAIDiagnostics({ key: cacheKey, fromFallback: false, timestamp: Date.now() });
             try { localStorage.setItem(cacheKey, JSON.stringify(parsed)); } catch {/* ignore */ }
         } catch (e) {
-            setError(e instanceof Error ? e.message : 'Unknown error');
+            // Attempt fallback
+            const fb = getAIFallback(cacheKey);
+            if (fb) {
+                parsed = fb as TParsed;
+                setData(parsed);
+                setFromFallback(true);
+                if (import.meta.env.DEV) pushAIDiagnostics({ key: cacheKey, fromFallback: true, timestamp: Date.now() });
+                setError(null); // treat fallback as successful resolution
+            } else {
+                setError(e instanceof Error ? e.message : 'Unknown error');
+            }
         } finally {
             setLoading(false);
         }
+        return parsed;
     }, [buildPrompt, cacheKey, temperature, maxTokens, parseShape]);
 
-    return { data, loading, error, run };
+    return { data, loading, error, run, fromFallback };
 }

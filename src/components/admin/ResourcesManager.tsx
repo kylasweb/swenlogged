@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Plus, Edit, Save, Settings, Bot, Calculator, Map, Wrench } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useFeatureFlag } from '@/contexts/FeatureFlagsProvider';
+import { FEATURE_KEYS } from '@/constants/featureKeys';
 
 interface ResourceConfiguration {
   id: string;
   resource_key: string;
-  configuration: any;
+  configuration: Record<string, unknown>;
   is_enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -31,14 +33,40 @@ const ResourcesManager = () => {
     is_enabled: true
   });
 
-  const resourceTypes = [
-    { key: 'ai_assistant', name: 'AI Assistant', icon: Bot, description: 'PuterJS AI Assistant configuration' },
-    { key: 'freight_calculator', name: 'Freight Calculator', icon: Calculator, description: 'Freight calculation tool settings' },
-    { key: 'marine_traffic', name: 'Marine Traffic', icon: Map, description: 'Marine traffic monitoring tool' },
-    { key: 'route_optimizer', name: 'Route Optimizer', icon: Wrench, description: 'Route optimization engine' },
-    { key: 'document_scanner', name: 'Document Scanner', icon: Settings, description: 'AI document processing tool' },
-    { key: 'container_optimizer', name: 'Container Optimizer', icon: Calculator, description: 'Container load optimization' }
-  ];
+  const resourceTypes = useMemo(() => ([
+    { key: FEATURE_KEYS.AI_ASSISTANT, name: 'AI Assistant', icon: Bot, description: 'PuterJS AI Assistant configuration' },
+    { key: FEATURE_KEYS.FREIGHT_CALCULATOR, name: 'Freight Calculator', icon: Calculator, description: 'Freight calculation tool settings' },
+    { key: FEATURE_KEYS.MARINE_TRAFFIC, name: 'Marine Traffic', icon: Map, description: 'Marine traffic monitoring tool' },
+    { key: FEATURE_KEYS.ROUTE_OPTIMIZER, name: 'Route Optimizer', icon: Wrench, description: 'Route optimization engine' },
+    { key: FEATURE_KEYS.DOCUMENT_SCANNER, name: 'Document Scanner', icon: Settings, description: 'AI document processing tool' },
+    { key: FEATURE_KEYS.CONTAINER_OPTIMIZER, name: 'Container Optimizer', icon: Calculator, description: 'Container load optimization' }
+  ]), []);
+
+  const { enabled: aiEnabled } = useFeatureFlag(FEATURE_KEYS.AI_ASSISTANT);
+  const { enabled: freightEnabled } = useFeatureFlag(FEATURE_KEYS.FREIGHT_CALCULATOR);
+  const { enabled: marineEnabled } = useFeatureFlag(FEATURE_KEYS.MARINE_TRAFFIC);
+  const { enabled: routeEnabled } = useFeatureFlag(FEATURE_KEYS.ROUTE_OPTIMIZER);
+  const { enabled: docScanEnabled } = useFeatureFlag(FEATURE_KEYS.DOCUMENT_SCANNER);
+  const { enabled: containerEnabled } = useFeatureFlag(FEATURE_KEYS.CONTAINER_OPTIMIZER);
+
+  const { visibleResources, hiddenResources } = useMemo(() => {
+    const visible: typeof resourceTypes = [];
+    const hidden: typeof resourceTypes = [];
+    for (const r of resourceTypes) {
+      let on = true;
+      switch (r.key) {
+        case FEATURE_KEYS.AI_ASSISTANT: on = aiEnabled; break;
+        case FEATURE_KEYS.FREIGHT_CALCULATOR: on = freightEnabled; break;
+        case FEATURE_KEYS.MARINE_TRAFFIC: on = marineEnabled; break;
+        case FEATURE_KEYS.ROUTE_OPTIMIZER: on = routeEnabled; break;
+        case FEATURE_KEYS.DOCUMENT_SCANNER: on = docScanEnabled; break;
+        case FEATURE_KEYS.CONTAINER_OPTIMIZER: on = containerEnabled; break;
+        default: on = true; break;
+      }
+      (on ? visible : hidden).push(r);
+    }
+    return { visibleResources: visible, hiddenResources: hidden };
+  }, [resourceTypes, aiEnabled, freightEnabled, marineEnabled, routeEnabled, docScanEnabled, containerEnabled]);
 
   useEffect(() => {
     fetchConfigurations();
@@ -53,7 +81,10 @@ const ResourcesManager = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setConfigurations(data || []);
+      setConfigurations((data || []).map(d => ({
+        ...d,
+        configuration: typeof d.configuration === 'object' && d.configuration !== null ? d.configuration as Record<string, unknown> : {}
+      })) as ResourceConfiguration[]);
     } catch (error) {
       console.error('Error fetching configurations:', error);
       toast.error('Failed to fetch configurations');
@@ -272,7 +303,7 @@ const ResourcesManager = () => {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {resourceTypes.map((resource) => {
+            {visibleResources.map((resource) => {
               const config = configurations.find(c => c.resource_key === resource.key);
               const Icon = resource.icon;
               
@@ -301,6 +332,19 @@ const ResourcesManager = () => {
               );
             })}
           </div>
+          {hiddenResources.length > 0 && (
+            <div className="mt-6 border rounded-lg p-4 bg-muted/30">
+              <h3 className="text-sm font-semibold mb-2">Hidden Resources (Disabled Features)</h3>
+              <ul className="text-xs space-y-1">
+                {hiddenResources.map(r => (
+                  <li key={r.key} className="flex justify-between">
+                    <span>{r.name}</span>
+                    <span className="text-muted-foreground">disabled</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="configurations" className="space-y-4">

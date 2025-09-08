@@ -85,6 +85,8 @@ import VideoTutorialLibraryPage from "./pages/VideoTutorialLibraryPage";
 import BottomNav from "@/components/BottomNav";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import VerificationPage from "./pages/VerificationPage";
+import FeatureGate from './components/FeatureGate';
+import { FEATURE_KEYS } from '@/constants/featureKeys';
 
 const App = () => {
   // Initialize QueryClient inside the component to ensure React is ready
@@ -155,11 +157,11 @@ const App = () => {
               <Route path="/verification" element={<VerificationPage />} />
 
               {/* Tool Routes */}
-              <Route path="/tools/freight-calculator" element={<FreightCalculatorPage />} />
-              <Route path="/tools/route-optimizer" element={<RouteOptimizerPage />} />
-              <Route path="/tools/document-scanner" element={<DocumentScannerPage />} />
-              <Route path="/tools/marine-traffic" element={<MarineTrafficPage />} />
-              <Route path="/tools/container-optimizer" element={<ContainerLoadOptimizerPage />} />
+              <Route path="/tools/freight-calculator" element={<FeatureGate feature={FEATURE_KEYS.FREIGHT_CALCULATOR} fallback={<NotFound />}><FreightCalculatorPage /></FeatureGate>} />
+              <Route path="/tools/route-optimizer" element={<FeatureGate feature={FEATURE_KEYS.ROUTE_OPTIMIZER} fallback={<NotFound />}><RouteOptimizerPage /></FeatureGate>} />
+              <Route path="/tools/document-scanner" element={<FeatureGate feature={FEATURE_KEYS.DOCUMENT_SCANNER} fallback={<NotFound />}><DocumentScannerPage /></FeatureGate>} />
+              <Route path="/tools/marine-traffic" element={<FeatureGate feature={FEATURE_KEYS.MARINE_TRAFFIC} fallback={<NotFound />}><MarineTrafficPage /></FeatureGate>} />
+              <Route path="/tools/container-optimizer" element={<FeatureGate feature={FEATURE_KEYS.CONTAINER_OPTIMIZER} fallback={<NotFound />}><ContainerLoadOptimizerPage /></FeatureGate>} />
               <Route path="/ai-test" element={<AITestPage />} />
               
               {/* Service Routes */}
