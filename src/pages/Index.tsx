@@ -7,6 +7,8 @@ import ClientShowcase from '../components/ClientShowcase';
 import Contact from '../components/Contact';
 import Footer from '../components/Footer';
 import LiveChat from '../components/LiveChat';
+import React, { Suspense } from 'react';
+const AIChatConsole = React.lazy(()=> import('@/components/ai/AIChatConsole'));
 
 const Index = () => {
   return (
@@ -19,6 +21,12 @@ const Index = () => {
       <Contact />
       <Footer />
       <LiveChat />
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold mb-2">AI Chat (Preview)</h2>
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading AI console…</div>}>
+          <AIChatConsole />
+        </Suspense>
+      </div>
     </div>
   );
 };
